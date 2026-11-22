@@ -773,19 +773,23 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
 
   /* ---------- buying ---------- */
 
+  /* Once you've gone down you can't buy, and you can't buy after using all your buys. */
+  function canBuyNow(p) { return !p.down && p.buys < RULES.maxBuys; }
+
   function doBuy(st, idx) {
     if (st.pending) return fail('A buy is already waiting for approval');
     if (!st.buyOpen || st.phase !== 'draw') return fail('You can only buy right after a discard, before the next player draws');
     if (idx === st.turn) return fail("It's your turn. Just take the card.");
     if (idx === st.lastDiscarder) return fail("You can't buy your own discard");
     const me = st.players[idx];
+    if (me.down) return fail("You can't buy once you've gone down");
     if (me.buys >= RULES.maxBuys) return fail('You have used all ' + RULES.maxBuys + ' of your buys this round');
     if (!st.discard.length) return fail('Nothing to buy');
     const n = st.players.length, queue = [];
     for (let i = st.turn; i !== idx; i = (i + 1) % n) {
       const p = st.players[i];
       // Players who can't buy anymore can only approve, so they're approved automatically.
-      queue.push({ id: p.id, resp: (i !== st.turn && p.buys >= RULES.maxBuys) ? 'approve' : 'pending' });
+      queue.push({ id: p.id, resp: (i !== st.turn && !canBuyNow(p)) ? 'approve' : 'pending' });
     }
     const card = st.discard[st.discard.length - 1];
     st.pending = { buyer: me.id, cardId: card.id, queue: queue };
@@ -799,7 +803,7 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
     const q = st.pending.queue.find(function (x) { return x.id === me.id; });
     if (!q || q.resp !== 'pending') return fail('You have no decision to make here');
     if (choice !== 'approve' && choice !== 'take') return fail('Bad choice');
-    if (choice === 'take' && idx !== st.turn && me.buys >= RULES.maxBuys) return fail('You have no buys left');
+    if (choice === 'take' && idx !== st.turn && !canBuyNow(me)) return fail(me.down ? "You can't buy once you've gone down" : 'You have no buys left');
     q.resp = choice;
     resolvePending(st, rng);
     return ok();
@@ -987,7 +991,7 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
       'Book: 3 or more of the same rank, any suits. Run: 4 or more in a row, same suit. Aces are low or high, never both ways around.',
       'Each turn: draw the top discard or a card from the stock. Then, if you have your contract, lay it all down (only on your own turn). Then discard.',
       'Once you are down, you can add cards to anyone\'s laid-down sets on your turns, including the turn you go down.',
-      'Buying: right after someone discards, anyone can press Buy to grab that card out of turn. The game pauses. Everyone ahead of the buyer (starting with the player whose turn it is) can Approve or Take it instead. A buyer also draws 1 extra card from the stock. You get 3 buys per round.',
+      'Buying: right after someone discards, anyone who has not gone down yet can press Buy to grab that card out of turn. The game pauses. Everyone ahead of the buyer (starting with the player whose turn it is) can Approve or Take it instead. A buyer also draws 1 extra card from the stock. You get 3 buys per round, and you cannot buy once you have gone down.',
       'To go out, play every card in your hand. Your last card has to be played on a set, not discarded.',
       'When someone goes out, everyone else adds up what is left in their hand: Ace 15, 8 through King 10, 2 through 7 five, Joker 25.',
       'If a round drags on forever (stock runs out three times, or about 70 turns each), it ends and everyone scores their hand.',
@@ -1410,7 +1414,7 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
     this.seenKey = key;
     let lock = 0;
     if (g.status === 'playing' && g.buyOpen && E.RULES.buyWindowMs > 0) {
-      const anyBuyer = g.players.some(function (p, i) { return i !== g.turn && i !== g.lastDiscarder && p.buys < E.RULES.maxBuys; });
+      const anyBuyer = g.players.some(function (p, i) { return i !== g.turn && i !== g.lastDiscarder && !p.down && p.buys < E.RULES.maxBuys; });
       if (anyBuyer) lock = E.RULES.buyWindowMs;
     }
     this.lockUntil = lock ? Date.now() + lock : 0;
@@ -1776,7 +1780,7 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
     const canPlay = myTurn && V.phase === 'play';
     const cur = V.players[V.turn];
     const canBuy = V.status === 'playing' && V.buyOpen && V.phase === 'draw' && !V.pending && V.turn !== myIdx &&
-      V.lastDiscarderId !== V.youId && me && me.buys < V.maxBuys;
+      V.lastDiscarderId !== V.youId && me && !me.down && me.buys < V.maxBuys;
 
     const bar = h('div', { class: 'bar' },
       V.online && V.code ? h('span', { class: 'chip' }, 'Room ' + V.code) : null,

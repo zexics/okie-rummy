@@ -396,6 +396,10 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
 .flashbox .fx{font-size:15px;color:var(--muted)}
 @media (max-width:430px){.flashbox .ft{font-size:26px}}
 
+.mc{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;min-width:15px;height:24px;line-height:1;font-size:10px;margin-left:-2px}
+.mc b{font-weight:400;font-size:11px}.mc i{font-style:normal;font-size:10px;margin-top:-1px}
+@media (min-width:900px){.mc{min-width:20px;height:32px;font-size:14px}.mc b{font-size:15px}.mc i{font-size:14px}}
+
 </style>
 </head>
 <body>
@@ -1816,8 +1820,9 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
     return h('div', { class: 'msets' }, ms.map(function (m) {
       return h('div', { class: 'mset ' + m.type }, m.cards.map(function (c, i) {
         const jk = E.isJoker(c);
-        const lab = jk ? '★' : E.rankLabel(c.r);
-        return h('span', { class: 'mc ' + c.s }, lab);
+        const sym = { H: '♥', D: '♦', S: '♠', C: '♣' }[c.s] || '';
+        const rk = jk ? '★' : E.rankLabel(m.type === 'run' || m.rank ? E.meldRankAt(m, i) : c.r);
+        return h('span', { class: 'mc ' + (jk ? 'J' : c.s) }, h('b', null, rk), jk ? '' : h('i', null, sym));
       }));
     }));
   }

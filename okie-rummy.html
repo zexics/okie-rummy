@@ -353,6 +353,30 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
 .hand .card.gm.gfirst::after{left:-5px;border-top-left-radius:5px}
 .hand .card.gm.glast::after{right:-5px}
 
+/* ---------- laptop: fit the whole game in one screen, no page scrolling ---------- */
+@media (min-width:900px){
+  .gamewrap{height:calc(100vh - 36px);min-height:520px;gap:6px;overflow:hidden}
+  .gamegrid{flex:1 1 auto;min-height:0;grid-template-rows:minmax(0,1fr);align-items:stretch}
+  .main{min-height:0;height:100%}
+  .ring{flex:1 1 auto;min-height:170px;height:auto;max-height:none}
+  .hand{min-height:120px;padding-top:30px;padding-bottom:6px}
+  .side{position:static;height:100%;max-height:none;overflow:auto}
+  .banner{font-size:21px;padding:4px 10px}
+  .hint{min-height:0;font-size:16px}
+  .contract{padding:3px 14px}
+  .contract b{font-size:26px}
+}
+@media (min-width:900px) and (max-height:780px){
+  .card{width:56px;height:80px}.card .rk{font-size:26px}.card .sp{top:24px}.card .bg{width:30px;height:30px}.card .bg.letter{font-size:38px;line-height:30px;width:30px}.card .jw{top:33px;font-size:12px}
+  .back,.empty{width:56px;height:80px}
+  .hand{min-height:108px;padding-top:26px}
+  .seat{font-size:17px;min-width:104px;padding:3px 8px 4px}
+  .seat .sfan{height:22px}
+  .actions button{font-size:18px;padding:7px 14px}
+  .bar{font-size:16px}
+  .bar button.small{padding:3px 8px}
+}
+
 </style>
 </head>
 <body>
@@ -716,7 +740,7 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
     st.phase = 'draw';
     st.status = 'playing';
     st.result = null;
-    st.buyOpen = false; st.lastDiscarder = -1; st.pending = null; st.reshuffles = 0; st.turns = 0;
+    st.buyOpen = true; st.lastDiscarder = -1; st.pending = null; st.reshuffles = 0; st.turns = 0;  // the face-up starter card can be bought too
     log(st, 'Round ' + st.round + ': ' + contractText(contractFor(st)) + '. ' + st.players[st.turn].name + ' goes first.');
   }
 
@@ -1465,9 +1489,10 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
      ===================================================== */
   function Client(code, name) {
     this.code = code; this.name = name; this.isHost = false;
-    this.token = store('session', 'rummy.token') || rand(12);
-    store('session', 'rummy.token', this.token);
+    this.token = store('local', 'rummy.token') || store('session', 'rummy.token') || rand(12);
+    store('local', 'rummy.token', this.token);
     store('session', 'rummy.join', JSON.stringify({ code: code, name: name }));
+    store('local', 'rummy.last', JSON.stringify({ code: code, name: name, t: Date.now() }));
     this.peer = null; this.conn = null; this.dead = false; this.everConnected = false; this.retry = 0;
     this.connect();
   }
@@ -1574,6 +1599,16 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
     net = null; V = null; selected = new Set(); connBanner = ''; gameUI = null; building = false; bgroups = [];
     render();
   }
+  function leaveRoom() { store('local', 'rummy.last', null); goHome(); }
+  function lastRoom() {
+    try { const l = JSON.parse(store('local', 'rummy.last') || 'null'); if (l && l.code && Date.now() - l.t < 8 * 3600 * 1000) return l; } catch (e) { /* ignore */ }
+    return null;
+  }
+  function rejoin(l) {
+    net = new Client(l.code, l.name);
+    document.getElementById('app').textContent = '';
+    document.getElementById('app').append(h('div', { class: 'home panel center' }, 'Reconnecting to room ' + l.code + '…'));
+  }
   function act(a) { if (net) net.send({ t: 'act', a: a }); }
   function name() { return (document.getElementById('nm') && document.getElementById('nm').value.trim()) || store('local', 'rummy.name') || 'Player'; }
 
@@ -1677,7 +1712,9 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
       el.querySelector('.face').style.animation = 'bob 3.2s ease-in-out infinite'; el.querySelector('.face').style.animationDelay = (-i * 0.5) + 's';
       void a; return el;
     });
+    const last = lastRoom();
     return h('div', { class: 'home stack narrow' },
+      last ? h('button', { class: 'green', onclick: function () { Sound.unlock(); rejoin(last); } }, 'Reconnect to room ' + last.code) : null,
       h('div', null,
         h('div', { class: 'fan' }, fanCards),
         logoEl(),
@@ -1716,7 +1753,7 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
     parts.push(h('div', { class: 'bar' }, h('span', { class: 'chip' }, APP_NAME), h('span', { class: 'grow' }),
       soundBtn(),
       h('button', { class: 'ghost small', onclick: function () { modal = 'rules'; render(); } }, 'Rules'),
-      h('button', { class: 'ghost small', onclick: function () { if (confirm('Leave this room?')) goHome(); } }, 'Leave')));
+      h('button', { class: 'ghost small', onclick: function () { if (confirm('Leave this room?')) leaveRoom(); } }, 'Leave')));
     if (connBanner) parts.push(h('div', { class: 'conn' }, connBanner));
     if (V.online) {
       parts.push(h('div', { class: 'panel stack' },
@@ -1787,7 +1824,7 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
       h('span', { class: 'grow' }),
       soundBtn(),
       h('button', { class: 'ghost small', onclick: function () { modal = 'rules'; render(); } }, 'Rules'),
-      h('button', { class: 'ghost small', onclick: function () { if (confirm('Leave this game?')) goHome(); } }, 'Leave'));
+      h('button', { class: 'ghost small', onclick: function () { if (confirm('Leave this game?')) leaveRoom(); } }, 'Leave'));
 
     const contract = h('div', { class: 'contract' },
       h('span', { class: 'rd' }, 'ROUND ' + V.round + '/' + V.rounds),
@@ -1903,11 +1940,50 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
     building = true; bgroups = contractTypes().map(function () { return []; }); bactive = 0;
     selected = new Set(); Sound.select(1); render();
   }
+  function slotAccepts(i, card, types) {
+    const t = types[i], cards = groupCards(bgroups[i] || []);
+    if (E.isJoker(card)) return true;
+    const nat = cards.filter(function (c) { return !E.isJoker(c); });
+    if (t === 'book') return !nat.length || nat[0].r === card.r;
+    if (!nat.length) return true;
+    return nat[0].s === card.s && !nat.some(function (c) { return c.r === card.r; });
+  }
+  /* A slot is "finished" when it's valid and no other loose card in your hand could still join it. */
+  function slotDone(i, types) {
+    const t = types[i], cards = groupCards(bgroups[i] || []);
+    if (cards.length < (t === 'book' ? 3 : 4) || !E.validateGroup(t, cards)) return false;
+    const used = {}; bgroups.forEach(function (g) { g.forEach(function (id) { used[id] = true; }); });
+    return !V.hand.some(function (c) { return !used[c.id] && !E.isJoker(c) && slotAccepts(i, c, types) && E.validateGroup(t, cards.concat([c])); });
+  }
   function builderToggle(id) {
+    const types = contractTypes();
     const gi = bgroups.findIndex(function (g) { return g.indexOf(id) >= 0; });
-    if (gi >= 0) { bgroups[gi] = bgroups[gi].filter(function (x) { return x !== id; }); bactive = gi; Sound.deselect(); }
-    else { bgroups[bactive].push(id); Sound.select(bgroups[bactive].length); }
+    if (gi >= 0) { bgroups[gi] = bgroups[gi].filter(function (x) { return x !== id; }); bactive = gi; Sound.deselect(); render(); return; }
+    const card = V.hand.find(function (c) { return c.id === id; });
+    if (!card) return;
+    // try the slot you're filling first, then the others (an empty slot takes anything)
+    const order = [bactive].concat(types.map(function (t, i) { return i; }).filter(function (i) { return i !== bactive; }));
+    const target = E.isJoker(card) ? bactive : order.find(function (i) { return slotAccepts(i, card, types); });
+    if (target === undefined) { toast(types.indexOf('book') >= 0 && types.indexOf('run') < 0 ? 'Every book you are building uses a different rank.' : "That card doesn't fit in any of your sets."); return; }
+    bgroups[target].push(id); bactive = target; Sound.select(bgroups[target].length);
+    // keep cards in each set in order
+    bgroups[target] = sortGroup(types[target], bgroups[target]);
+    // jump to the next unfinished set once this one is complete
+    if (slotDone(target, types)) {
+      const next = types.map(function (t, i) { return i; }).find(function (i) { return i !== target && !slotDone(i, types); });
+      if (next !== undefined) bactive = next;
+    }
     render();
+  }
+  function sortGroup(type, ids) {
+    const cards = groupCards(ids);
+    const nat = cards.filter(function (c) { return !E.isJoker(c); }), jk = cards.filter(E.isJoker);
+    if (type === 'run') {
+      const lay = nat.length && cards.length >= 4 ? E.validateGroup('run', cards) : null;
+      if (lay) return lay.cards.map(function (c) { return c.id; });
+      nat.sort(function (x, y) { return x.r - y.r; });
+    } else nat.sort(function (x, y) { return SUIT_ORDER[x.s] - SUIT_ORDER[y.s]; });
+    return nat.concat(jk).map(function (c) { return c.id; });
   }
   function groupCards(ids) { return ids.map(function (id) { return V.hand.find(function (c) { return c.id === id; }); }).filter(Boolean); }
   function builderPanel() {
@@ -1934,7 +2010,7 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
         h('button', { class: 'orange', onclick: function () {
           const g = Bots.findDown(V.hand, V.contract);
           if (!g) { toast("You can't go down with this hand yet."); return; }
-          bgroups = g.map(function (x) { return x.ids.slice(); }); bactive = 0; Sound.meld(); render();
+          bgroups = g.map(function (x, i) { return sortGroup(x.type, x.ids); }); bactive = 0; Sound.meld(); render();
         } }, 'Auto'),
         h('button', { class: 'ghost', onclick: function () { building = false; bgroups = []; render(); } }, 'Cancel')));
   }
@@ -2273,7 +2349,7 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
     setupTilt(); setupDrag();
     render();
     try {
-      const saved = JSON.parse(store('session', 'rummy.join') || 'null');
+      const saved = JSON.parse(store('session', 'rummy.join') || 'null') || (location.hash ? null : lastRoom());
       if (saved && saved.code && !net) { net = new Client(saved.code, saved.name); }
     } catch (e) { /* ignore */ }
   });

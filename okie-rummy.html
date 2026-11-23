@@ -470,6 +470,13 @@ body.big .flylabel{font-size:26px}
 .laybar{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;align-items:center;margin:4px 0}
 .laybar:empty{display:none}
 
+.spinner{z-index:95;background:rgba(8,6,20,.7)}
+.spinner .ft{min-height:36px}
+.wheelwrap{position:relative;width:min(320px,70vw);height:min(320px,70vw);margin:12px auto 8px}
+.wsvg{width:100%;height:100%;display:block;filter:drop-shadow(0 6px 0 rgba(0,0,0,.45))}
+.wg{transform-origin:150px 150px;transform-box:view-box}
+.wptr{position:absolute;left:50%;top:-6px;width:0;height:0;margin-left:-14px;border-left:14px solid transparent;border-right:14px solid transparent;border-top:30px solid #f3c34d;filter:drop-shadow(0 3px 0 #000a)}
+
 </style>
 </head>
 <body>
@@ -590,6 +597,7 @@ body.big .flylabel{font-size:26px}
   Sound.lose = function () { tone(330, 0.25, 'triangle', 0.1, 220); tone(247, 0.4, 'triangle', 0.1, 150, 0.2); };
   Sound.click = function () { tone(520, 0.05, 'square', 0.05, 700); tone(780, 0.06, 'square', 0.04, 0, 0.04); };
   Sound.hover = function () { tone(1200, 0.025, 'triangle', 0.025, 1400); };
+  Sound.key = function () { tone(220 + Math.random() * 60, 0.04, 'triangle', 0.06, 150); };
   Sound.error = function () { tone(150, 0.18, 'sawtooth', 0.07, 90); };
   FX.Sound = Sound;
 
@@ -792,6 +800,27 @@ body.big .flylabel{font-size:26px}
     if (end < 14 && (isJoker(card) || (card.s === meld.suit && (end + 1 === 14 ? card.r === 1 : card.r === end + 1)))) out.push('high');
     return out;
   }
+  /* Can all of these cards be added to the meld (at the given end for runs)? Returns the order to place them in, or null. */
+  function layoffPlan(meld, cards, end) {
+    const m = { type: meld.type, rank: meld.rank, suit: meld.suit, start: meld.start, cards: meld.cards.slice() };
+    const left = cards.slice(), plan = [];
+    let progress = true;
+    while (left.length && progress) {
+      progress = false;
+      for (let i = 0; i < left.length; i++) {
+        const opts = layoffOptions(m, left[i]);
+        if (!opts.length) continue;
+        let e = opts[0];
+        if (m.type === 'run') { if (end) { if (opts.indexOf(end) < 0) continue; e = end; } else if (opts.length > 1) e = 'high'; }
+        const c = left.splice(i, 1)[0];
+        plan.push({ card: c, end: e });
+        if (m.type === 'book') { m.cards.push(c); if (m.rank === null && !isJoker(c)) m.rank = c.r; }
+        else if (e === 'low') { m.cards.unshift(c); m.start -= 1; } else m.cards.push(c);
+        progress = true; break;
+      }
+    }
+    return left.length ? null : plan;
+  }
   function canLayoff(meld, card) { return layoffOptions(meld, card).length > 0; }
 
   /* The rank a card in a meld stands for (matters for jokers). */
@@ -954,7 +983,7 @@ body.big .flylabel{font-size:26px}
     if (!bought && (st.deadBelow || 0) > st.discard.length) st.deadBelow = st.discard.length;
     w.hand.push(card);
     if (wi === st.turn) {
-      st.phase = 'play';
+      st.phase = 'play'; st.playStart = w.hand.length;
       log(st, w.name + ' took the ' + cardLabel(card) + '.');
     } else {
       w.buys += 1;
@@ -1009,7 +1038,7 @@ body.big .flylabel{font-size:26px}
           me.hand.push(c);
           log(st, me.name + ' drew from the stock.');
         }
-        st.phase = 'play'; st.buyOpen = false;
+        st.phase = 'play'; st.buyOpen = false; st.playStart = me.hand.length;
         return ok();
       }
 
@@ -1057,6 +1086,7 @@ body.big .flylabel{font-size:26px}
         if (!opts.length) return fail('That card does not fit there');
         let end = opts[0];
         if (opts.length > 1) end = opts.indexOf(a.end) >= 0 ? a.end : 'high';
+        if (me.hand.length === 1 && st.playStart !== 2) return fail('You can only go out by playing both of your 2 cards right after you draw. Keep a card, discard or end your turn, and go out next turn.');
         const card = me.hand.splice(i, 1)[0];
         if (meld.type === 'book') {
           meld.cards.push(card);
@@ -1064,6 +1094,33 @@ body.big .flylabel{font-size:26px}
         } else if (end === 'low') { meld.cards.unshift(card); meld.start -= 1; }
         else meld.cards.push(card);
         log(st, me.name + ' added ' + cardLabel(card) + ' to a set.');
+        if (!me.hand.length) finishRound(st, idx);
+        return ok();
+      }
+
+      case 'layoffMany': {
+        if (st.phase !== 'play') return fail('Draw a card first');
+        if (!me.down) return fail('Go down before adding to sets');
+        const meld = st.melds.find(function (m) { return m.id === a.meldId; });
+        if (!meld) return fail('No such set');
+        const ids = Array.isArray(a.ids) ? a.ids : [];
+        const cards = [];
+        for (let k = 0; k < ids.length; k++) {
+          const i = handIndex(me.hand, ids[k]);
+          if (i < 0 || cards.indexOf(me.hand[i]) >= 0) return fail('Card not in your hand');
+          cards.push(me.hand[i]);
+        }
+        if (!cards.length) return fail('Pick at least one card');
+        const plan = layoffPlan(meld, cards, a.end);
+        if (!plan) return fail('Those cards do not all fit there');
+        if (cards.length === me.hand.length && st.playStart !== 2) return fail('You can only go out by playing both of your 2 cards right after you draw. Keep a card, discard or end your turn, and go out next turn.');
+        plan.forEach(function (pl) {
+          me.hand.splice(handIndex(me.hand, pl.card.id), 1);
+          if (meld.type === 'book') { meld.cards.push(pl.card); if (meld.rank === null && !isJoker(pl.card)) meld.rank = pl.card.r; }
+          else if (pl.end === 'low') { meld.cards.unshift(pl.card); meld.start -= 1; }
+          else meld.cards.push(pl.card);
+        });
+        log(st, me.name + ' added ' + plan.map(function (pl) { return cardLabel(pl.card); }).join(', ') + ' to a set.');
         if (!me.hand.length) finishRound(st, idx);
         return ok();
       }
@@ -1102,7 +1159,7 @@ body.big .flylabel{font-size:26px}
       stockCount: st.stock.length, discard: st.discard.slice(-2), discardCount: st.discard.length, discardDead: isTopDead(st),
       melds: st.melds, winnerIds: st.winnerIds, result: st.result,
       buyOpen: st.buyOpen, lastDiscarderId: st.lastDiscarder >= 0 ? st.players[st.lastDiscarder].id : null,
-      discardSeq: st.discardSeq, maxBuys: RULES.maxBuys,
+      discardSeq: st.discardSeq, playStart: st.playStart || 0, maxBuys: RULES.maxBuys,
       pending: st.pending ? {
         buyer: st.pending.buyer, queue: st.pending.queue.map(function (q) { return { id: q.id, resp: q.resp }; }),
         card: st.discard[st.discard.length - 1] || null
@@ -1127,7 +1184,7 @@ body.big .flylabel{font-size:26px}
       'Once you are down, you can add cards to anyone\'s laid-down sets on your turns, including the turn you go down.',
       'Buying: right after someone discards, anyone who has not gone down yet can press Buy to grab that card out of turn. The game pauses. Everyone ahead of the buyer (starting with the player whose turn it is) can Approve or Take it instead. A buyer also draws 1 extra card from the stock. You get 3 buys per round, and you cannot buy once you have gone down.',
       'Dead cards: when a card is bought, every card under it in the discard pile is dead. Nobody can take or buy a dead card, so the next player has to draw from the stock. New discards on top are live again.',
-      'To go out, play every card in your hand. Your last card has to be played on a set, not discarded.',
+      'You can go out by going down with every card in your hand. Otherwise, to go out you must start your play with exactly 2 cards (after drawing) and play both on sets. With more cards, play what you can, keep at least one card, and discard or end your turn.',
       'When someone goes out, everyone else adds up what is left in their hand: Ace 15, 8 through King 10, 2 through 7 five, Joker 25.',
       'A round only ends when someone goes out. If the stock runs out, the discard pile is reshuffled.',
       'After round 6, the lowest total score wins.'
@@ -1139,7 +1196,7 @@ body.big .flylabel{font-size:26px}
     isJoker: isJoker, rankLabel: rankLabel, cardLabel: cardLabel, cardPoints: cardPoints, contractText: contractText,
     makeDeck: makeDeck, shuffle: shuffle,
     checkBook: checkBook, layoutRun: layoutRun, validateGroup: validateGroup,
-    isTopDead: isTopDead, layoffOptions: layoffOptions, canLayoff: canLayoff, meldRankAt: meldRankAt,
+    isTopDead: isTopDead, layoffOptions: layoffOptions, layoffPlan: layoffPlan, canLayoff: canLayoff, meldRankAt: meldRankAt,
     newGame: newGame, nextRound: nextRound, apply: apply, cancelBuy: cancelBuy, view: view, rulesSummary: rulesSummary,
     contractFor: contractFor
   };
@@ -1312,9 +1369,11 @@ body.big .flylabel{font-size:26px}
     const contract = E.RULES.contracts[st.round - 1];
     if (!me.down) {
       const groups = findDown(me.hand, contract);
+      const usedN = groups ? groups.reduce(function (n, g) { return n + g.ids.length; }, 0) : 0;
       if (groups && Math.random() < (cfg(level).downProb == null ? 1 : cfg(level).downProb)) return { type: 'down', groups: groups };
     } else {
       for (const c of me.hand) {
+        if (me.hand.length === 1 && st.playStart !== 2) break;
         for (const m of st.melds) {
           const opts = E.layoffOptions(m, c);
           if (opts.length) return { type: 'layoff', id: c.id, meldId: m.id, end: opts.indexOf('high') >= 0 ? 'high' : 'low' };
@@ -1361,7 +1420,7 @@ body.big .flylabel{font-size:26px}
   const E = window.RummyEngine, Bots = window.RummyBots;
   const FX = window.FX || {};
   const noop = function () {};
-  const Sound = FX.Sound || { flip: noop, select: noop, deselect: noop, discard: noop, meld: noop, layoff: noop, turn: noop, win: noop, lose: noop, error: noop, unlock: noop, click: noop, hover: noop, toggle: function () { return false; }, on: false };
+  const Sound = FX.Sound || { flip: noop, select: noop, deselect: noop, discard: noop, meld: noop, layoff: noop, turn: noop, win: noop, lose: noop, error: noop, unlock: noop, click: noop, hover: noop, key: noop, toggle: function () { return false; }, on: false };
   const APP_NAME = 'Okie Rummy';
   const PEER_PREFIX = 'okie-rummy-';
   const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -1525,6 +1584,10 @@ body.big .flylabel{font-size:26px}
         if (!isHost || ['easy', 'normal', 'hard'].indexOf(msg.level) < 0) return;
         this.level = msg.level;
         break;
+      case 'speed':
+        if (!isHost || [1, 2, 3, 5].indexOf(msg.v) < 0) return;
+        this.speed = msg.v;
+        break;
       case 'pause':
         if (!isHost || !this.game) return;
         this.paused = !!msg.on;
@@ -1571,7 +1634,7 @@ body.big .flylabel{font-size:26px}
         players: this.seats.map(function (s) { return { id: s.id, name: s.name, bot: s.bot, connected: s.connected }; })
       };
     }
-    v.code = this.code; v.hostId = this.me; v.online = this.online; v.level = this.level || 'normal'; v.paused = !!this.paused;
+    v.code = this.code; v.hostId = this.me; v.online = this.online; v.level = this.level || 'normal'; v.paused = !!this.paused; v.speed = this.speed || 1;
     return v;
   };
   /* After each discard, the stock is locked for a moment so other players can press Buy. */
@@ -1584,7 +1647,17 @@ body.big .flylabel{font-size:26px}
     let lock = 0;
     if (g.status === 'playing' && g.buyOpen && E.RULES.buyWindowMs > 0) {
       const anyBuyer = g.players.some(function (p, i) { return i !== g.turn && i !== g.lastDiscarder && !p.down && p.buys < E.RULES.maxBuys; });
-      if (anyBuyer) lock = E.RULES.buyWindowMs;
+      const hasBots = g.players.some(function (p) { return p.bot; });
+      // with computers in the game, humans get a longer window before any computer buys
+      if (anyBuyer) lock = hasBots ? Math.max(1500, Math.max(E.RULES.buyWindowMs, 6000) / (this.speed || 1)) : E.RULES.buyWindowMs;
+    }
+    // start of a round: give everyone a few moments to look at their cards before any computer acts
+    if (g.status === 'playing' && this.graceRound !== g.round) {
+      this.graceRound = g.round;
+      if (g.players.some(function (p) { return p.bot; })) {
+        this.graceStart = Date.now();
+        if (g.buyOpen && lock) lock = Math.max(lock, 9000 / (this.speed || 1));
+      }
     }
     this.lockUntil = lock ? Date.now() + lock : 0;
   };
@@ -1619,16 +1692,16 @@ body.big .flylabel{font-size:26px}
             const p = g2.players[order[k]];
             if (Bots.wantsBuy(g2, p.id, lvl)) { if (E.apply(g2, p.id, { type: 'buy' }).ok) { self.changed(); return; } }
           }
-        }, Math.max(300, Math.min(left - 400, 700 + Math.random() * 900)));
+        }, Math.max(300, Math.min(left - 400, (3800 + Math.random() * 1400) / (self.speed || 1)), (self.graceStart ? self.graceStart + 9000 / (self.speed || 1) : 0) - Date.now() + 200));
       }
     }
     if (this.botTimer) return;
     let delay = null;
     if (g.pending) {
-      if (g.pending.queue.some(function (q) { const p = g.players.find(function (x) { return x.id === q.id; }); return q.resp === 'pending' && p && p.bot; })) delay = 1200 + Math.random() * 800;
+      if (g.pending.queue.some(function (q) { const p = g.players.find(function (x) { return x.id === q.id; }); return q.resp === 'pending' && p && p.bot; })) delay = (1200 + Math.random() * 800) / (this.speed || 1);
     } else if (g.players[g.turn].bot) {
       // about 10 seconds per bot turn: roughly 5s to draw, 5s to play and discard
-      delay = Math.max(4600 + Math.random() * 350, this.lockLeft() + 250);
+      delay = Math.max((4600 + Math.random() * 350) / (this.speed || 1), this.lockLeft() + 250, (this.graceStart ? this.graceStart + 9000 / (this.speed || 1) : 0) - Date.now() + 300);
     }
     if (delay === null) return;
     this.botTimer = setTimeout(function () {
@@ -1756,6 +1829,7 @@ body.big .flylabel{font-size:26px}
       lastScores = {}; prev.players.forEach(function (p) { lastScores[p.id] = p.score; });
     } else lastScores = {};
     V = v;
+    if (v.status === 'playing' && v.round === 1 && (!prev || prev.status !== 'playing') && v.discardCount <= 1 && !v.players.some(function (p) { return p.down; })) setTimeout(function () { showSpinner(v); }, 50);
     const mi = meIdx(v), me = v.players[mi];
     if (building && !(v.status === 'playing' && v.turn === mi && v.phase === 'play' && me && !me.down && !v.pending)) { building = false; bgroups = []; }
     clearTimeout(lockTimer);
@@ -1842,6 +1916,21 @@ body.big .flylabel{font-size:26px}
     });
   }
 
+  /* If a seat (for example yours, once your laid-down sets show on it) sticks out over the status banner, push the banner down so its text stays readable. */
+  function fixOverlap() {
+    const banner = document.querySelector('.gamewrap .banner, .banner');
+    if (!banner) return;
+    banner.style.marginTop = '';
+    const app = document.getElementById('app'), z = parseFloat(app && app.style.zoom) || 1;
+    const br = banner.getBoundingClientRect();
+    let over = 0;
+    document.querySelectorAll('.seat').forEach(function (st) {
+      const r = st.getBoundingClientRect();
+      if (r.bottom > br.top && r.top < br.bottom && r.right > br.left && r.left < br.right) over = Math.max(over, r.bottom - br.top);
+    });
+    if (over > 0) banner.style.marginTop = Math.ceil((over + 10) / z) + 'px';
+  }
+
   function render(ev, prev) {
     const app = document.getElementById('app');
     const before = captureRects();
@@ -1851,6 +1940,7 @@ body.big .flylabel{font-size:26px}
     else if (V.status === 'lobby') app.append(lobbyScreen());
     else app.append(gameScreen(ev));
     layoutHand();
+    fixOverlap();
     if (bg) bg.setMood(V && V.status === 'playing' ? (V.turn === meIdx(V) ? 0.95 : 0.1) : 0.5);
     if (modal === 'rules') { const old = document.getElementById('rules-modal'); if (old) old.remove(); document.body.append(rulesModal()); }
     else { const m = document.getElementById('rules-modal'); if (m) m.remove(); }
@@ -1873,6 +1963,7 @@ body.big .flylabel{font-size:26px}
     z = Math.round(z * 100) / 100;
     document.documentElement.style.setProperty('--vh', (hh / z / 100) + 'px');
     if (app) app.style.zoom = z === 1 ? '' : String(z);
+    if (typeof fixOverlap === 'function') fixOverlap();
   }
   function bigBtn() {
     const on = function () { return document.body.classList.contains('big'); };
@@ -2031,6 +2122,7 @@ body.big .flylabel{font-size:26px}
     const bar = h('div', { class: 'bar' },
       V.online && V.code ? h('span', { class: 'chip' }, 'Room ' + V.code) : null,
       h('span', { class: 'grow' }),
+      V.hostId === V.youId && V.players.some(function (p) { return p.bot; }) ? h('button', { class: 'ghost small', onclick: function () { const o = [1, 2, 3, 5]; net.send({ t: 'speed', v: o[(o.indexOf(V.speed || 1) + 1) % o.length] }); } }, 'Speed: ' + (V.speed || 1) + 'x') : null,
       V.hostId === V.youId && V.players.some(function (p) { return p.bot; }) ? h('button', { class: (V.paused ? 'orange' : 'ghost') + ' small', onclick: function () { net.send({ t: 'pause', on: !V.paused }); } }, V.paused ? 'Resume' : 'Pause') : null,
       bigBtn(),
       soundBtn(),
@@ -2129,14 +2221,25 @@ body.big .flylabel{font-size:26px}
   }
   function hand_(el) { return h('div', { class: 'handwrap' }, el); }
 
+  /* Which ends can ALL the selected cards go on this set at (books: 'add')? */
+  function selCards() { return V.hand.filter(function (c) { return selected.has(c.id); }); }
+  function layEnds(m, cards) {
+    if (!cards.length) return [];
+    if (m.type === 'book') return E.layoffPlan(m, cards) ? ['add'] : [];
+    return ['low', 'high'].filter(function (e) { return E.layoffPlan(m, cards, e); });
+  }
+  function layAct(m, end, cards) {
+    selected = new Set();
+    act({ type: 'layoffMany', ids: cards.map(function (c) { return c.id; }), meldId: m.id, end: end });
+  }
+
   function meldEl(m) {
     return h('div', { class: 'meld ' + m.type, dataset: { meld: m.id }, onclick: function (e) {
       if (e.target.closest && e.target.closest('.ends')) return;
       if (!e.currentTarget.classList.contains('target')) return;
-      const one = V.hand.find(function (c) { return selected.has(c.id); });
-      if (!one) return;
-      const opts = E.layoffOptions(m, one);
-      if (opts.length === 1) act({ type: 'layoff', id: one.id, meldId: m.id, end: opts[0] });
+      const cards = selCards();
+      const opts = layEnds(m, cards);
+      if (opts.length === 1) layAct(m, opts[0], cards);
     } },
       h('div', { class: 'lbl' }, m.type === 'book' ? 'Book' + (m.rank ? ' of ' + E.rankLabel(m.rank) + 's' : '') : 'Run'),
       h('div', { class: 'cards' }, meldCards(m, true)),
@@ -2145,8 +2248,8 @@ body.big .flylabel{font-size:26px}
         h('button', { class: 'small', onclick: function () { layoffEnd(m, 'high'); } }, 'high ▶')));
   }
   function layoffEnd(m, end) {
-    const one = V.hand.find(function (c) { return selected.has(c.id); });
-    if (one) act({ type: 'layoff', id: one.id, meldId: m.id, end: end });
+    const cards = selCards();
+    if (cards.length && layEnds(m, cards).indexOf(end) >= 0) layAct(m, end, cards);
   }
 
   /* ---------- go-down builder ---------- */
@@ -2279,9 +2382,13 @@ body.big .flylabel{font-size:26px}
 
   /* Selecting cards updates in place (no rebuild), so animations keep running smoothly. */
   function toggleSel(id, el) {
-    if (selected.has(id)) { selected.delete(id); Sound.deselect(); }
-    else { selected.add(id); Sound.select(selected.size); }
-    el.classList.toggle('sel', selected.has(id));
+    const grp = groups.find(function (g) { return g.indexOf(id) >= 0; });
+    const members = grp ? grp : [id];
+    const on = !selected.has(id);
+    members.forEach(function (m) { if (on) selected.add(m); else selected.delete(m); });
+    if (on) Sound.select(selected.size); else Sound.deselect();
+    document.querySelectorAll('.hand .card').forEach(function (c) { if (members.indexOf(c.dataset.id) >= 0) c.classList.toggle('sel', on); });
+    el.classList.toggle('sel', on);
     updateSelUI();
   }
   /* Save the selected cards as a group (yellow box), or break up the groups they belong to. */
@@ -2302,21 +2409,21 @@ body.big .flylabel{font-size:26px}
     const inG = sel.some(function (c) { return groups.some(function (g) { return g.indexOf(c.id) >= 0; }); });
     gameUI.grp.textContent = inG ? 'Ungroup' : 'Group';
     gameUI.grp.disabled = !(inG || sel.length >= 2);
-    const one = canPlay && gameUI.down && sel.length === 1 ? sel[0] : null;
+    const many = canPlay && gameUI.down && sel.length >= 1 ? sel : null;
     document.querySelectorAll('.meld').forEach(function (el) {
       const m = V.melds.find(function (x) { return x.id === el.dataset.meld; });
-      const opts = one && m ? E.layoffOptions(m, one) : [];
+      const opts = many && m ? layEnds(m, many) : [];
       el.classList.toggle('target', opts.length > 0);
       el.classList.toggle('pick', opts.length > 1);
     });
     let hint = '';
     if (canPlay) {
-      if (V.hand.length === 1) hint = gameUI.down ? 'Last card! Play it on a glowing set to go out, or End turn.' : 'Last card.';
-      else if (sel.length === 1) hint = gameUI.down ? 'Tap a glowing set to add this card, or tap the discard pile to discard it.' : 'Tap the discard pile to discard this card, or tap Go down first.';
+      if (V.hand.length === 1) hint = gameUI.down ? (V.playStart === 2 ? 'Last card! Play it on a glowing set to go out, or End turn.' : 'Keep this card and End turn. Next turn, draw and play both cards to go out.') : 'Last card.';
+      else if (sel.length >= 1) hint = gameUI.down ? 'Tap a glowing set to add ' + (sel.length > 1 ? 'these cards' : 'this card') + ', or select one card and tap the discard pile to discard it.' : 'Tap the discard pile to discard this card, or tap Go down first.';
       else hint = gameUI.down ? 'Tap a card to add it to a set, or select one and tap the discard pile.' : 'Select a card and tap the discard pile to discard it, or Go down with your sets.';
     }
     gameUI.hint.textContent = hint;
-    fillLayBar(one);
+    fillLayBar(many);
   }
   /* Quick buttons above the hand: add the selected card to ANY laid-down set, no scrolling needed. */
   function meldLabel(m) {
@@ -2327,21 +2434,21 @@ body.big .flylabel{font-size:26px}
     const end = m.start + m.cards.length - 1;
     return who + ' run ' + (sym[m.suit] || '') + E.rankLabel(m.start) + '–' + E.rankLabel(end === 14 ? 1 : end);
   }
-  function fillLayBar(one) {
+  function fillLayBar(cards) {
     const bar = gameUI && gameUI.lay;
     if (!bar) return;
     bar.textContent = '';
-    if (!one) return;
+    if (!cards || !cards.length) return;
     const btns = [];
     V.melds.forEach(function (m) {
-      const opts = E.layoffOptions(m, one);
+      const opts = layEnds(m, cards);
       opts.forEach(function (o) {
         const arrow = m.type === 'run' ? (o === 'low' ? ' (low end)' : ' (high end)') : '';
-        btns.push(h('button', { class: 'yellow small', onclick: function () { selected = new Set(); act({ type: 'layoff', id: one.id, meldId: m.id, end: o }); } }, 'Add to ' + meldLabel(m) + (opts.length > 1 ? arrow : '')));
+        btns.push(h('button', { class: 'yellow small', onclick: function () { layAct(m, o, cards); } }, 'Add to ' + meldLabel(m) + (opts.length > 1 ? arrow : '')));
       });
     });
     if (!btns.length) return;
-    bar.append(h('span', { class: 'muted' }, 'Add this card to: '));
+    bar.append(h('span', { class: 'muted' }, cards.length > 1 ? 'Add these ' + cards.length + ' cards to: ' : 'Add this card to: '));
     btns.forEach(function (b) { bar.append(b); });
   }
 
@@ -2520,6 +2627,52 @@ body.big .flylabel{font-size:26px}
     clearTimeout(showFlash._t); showFlash._t = setTimeout(function () { el.remove(); }, 5000);
   }
 
+  /* Wheel at the very start of a game: spins and lands on the player the game already chose to go first. */
+  function showSpinner(v) {
+    const old = document.getElementById('spinner'); if (old) old.remove();
+    const n = v.players.length, seg = 360 / n, target = v.turn;
+    const colors = ['#e0556b', '#3f8fd9', '#e5a323', '#3fae6b', '#9a62d6', '#e07a3a', '#2fb5b0', '#c9578f'];
+    const esc = function (t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+    const pt = function (r, deg) { const t = deg * Math.PI / 180; return [(150 + r * Math.sin(t)).toFixed(2), (150 - r * Math.cos(t)).toFixed(2)]; };
+    let svg = '<svg viewBox="0 0 300 300" class="wsvg"><g class="wg" id="wheelg">';
+    v.players.forEach(function (p, i) {
+      const a0 = (i - 0.5) * seg, a1 = (i + 0.5) * seg, A = pt(140, a0), B = pt(140, a1);
+      svg += '<path d="M150 150 L' + A[0] + ' ' + A[1] + ' A140 140 0 0 1 ' + B[0] + ' ' + B[1] + ' Z" fill="' + colors[i % colors.length] + '" stroke="#10131f" stroke-width="3"/>';
+      const nm = p.id === v.youId ? 'YOU' : p.name;
+      const label = nm.length > 8 ? nm.slice(0, 7) + '.' : nm;
+      svg += '<text x="150" y="62" text-anchor="middle" font-size="' + (n > 6 ? 15 : 19) + '" fill="#fff" stroke="#0008" stroke-width="3" paint-order="stroke" transform="rotate(' + (i * seg).toFixed(2) + ' 150 150)">' + esc(label.toUpperCase()) + '</text>';
+    });
+    svg += '</g><circle cx="150" cy="150" r="20" fill="#10131f" stroke="#f3c34d" stroke-width="4"/></svg>';
+    const wrap = h('div', { class: 'wheelwrap' });
+    wrap.innerHTML = svg + '<div class="wptr"></div>';
+    const title = h('div', { class: 'ft' }, 'WHO GOES FIRST?');
+    const sub = h('div', { class: 'fx' }, 'spinning...');
+    const el = h('div', { class: 'flash spinner', id: 'spinner' }, h('div', { class: 'flashbox' }, title, wrap, sub));
+    document.body.append(el);
+    const g = wrap.querySelector('#wheelg');
+    const dur = 5200, jitter = (Math.random() - 0.5) * seg * 0.6;
+    const rot = 360 * (5 + Math.floor(Math.random() * 3)) - target * seg + jitter;
+    g.style.transition = 'transform ' + dur + 'ms cubic-bezier(.12,.62,.08,1)';
+    g.getBoundingClientRect();
+    requestAnimationFrame(function () { g.style.transform = 'rotate(' + rot + 'deg)'; });
+    // tick sounds as segment borders pass the pointer (approximation of the easing curve)
+    const t0 = performance.now(); let lastK = 0;
+    (function ticks() {
+      if (!document.body.contains(el)) return;
+      const x = Math.min(1, (performance.now() - t0) / dur), prog = 1 - Math.pow(1 - x, 3.2);
+      const k = Math.floor((prog * rot + seg / 2) / seg);
+      if (k !== lastK) { lastK = k; Sound.select(k % 8); }
+      if (x < 1) requestAnimationFrame(ticks);
+    })();
+    setTimeout(function () {
+      if (!document.body.contains(el)) return;
+      const w = v.players[target];
+      title.textContent = (w.id === v.youId ? 'YOU GO' : w.name.toUpperCase() + ' GOES') + ' FIRST!';
+      sub.textContent = ''; Sound.meld();
+    }, dur + 100);
+    setTimeout(function () { el.remove(); }, dur + 2200);
+  }
+
   function celebrate(ev, prev, before) {
     flights(before, ev, prev);
     const app = document.getElementById('app');
@@ -2573,20 +2726,22 @@ body.big .flylabel{font-size:26px}
       if (building) return;
       const card = e.target.closest && e.target.closest('.hand .card');
       if (!card) return;
-      d = { card: card, id: card.dataset.id, x: e.clientX, y: e.clientY, on: false, pid: e.pointerId };
+      const gr = groups.find(function (g) { return g.indexOf(card.dataset.id) >= 0; });
+      const mem = Array.prototype.filter.call(document.querySelectorAll('.hand .card'), function (c) { return gr ? gr.indexOf(c.dataset.id) >= 0 : c === card; });
+      d = { card: card, mem: mem, id: card.dataset.id, x: e.clientX, y: e.clientY, on: false, pid: e.pointerId };
     });
     document.addEventListener('pointermove', function (e) {
       if (!d || e.pointerId !== d.pid) return;
       const dx = e.clientX - d.x, dy = e.clientY - d.y;
-      if (!d.on) { if (Math.hypot(dx, dy) < 10) return; d.on = true; d.card.classList.add('dragging'); }
-      d.card.style.translate = dx + 'px ' + dy + 'px';
+      if (!d.on) { if (Math.hypot(dx, dy) < 10) return; d.on = true; d.mem.forEach(function (c) { c.classList.add('dragging'); }); }
+      d.mem.forEach(function (c) { c.style.translate = dx + 'px ' + dy + 'px'; });
     });
     const end = function (e) {
       if (!d || e.pointerId !== d.pid) return;
       const was = d; d = null;
       if (!was.on) return;
-      was.card.classList.remove('dragging'); was.card.style.translate = '';
-      const others = Array.prototype.filter.call(document.querySelectorAll('.hand .card'), function (c) { return c !== was.card; });
+      was.mem.forEach(function (c) { c.classList.remove('dragging'); c.style.translate = ''; });
+      const others = Array.prototype.filter.call(document.querySelectorAll('.hand .card'), function (c) { return was.mem.indexOf(c) < 0; });
       let idx = 0;
       others.forEach(function (c) { const r = c.getBoundingClientRect(); if (e.clientX > r.left + r.width / 2) idx++; });
       const grp = groups.find(function (g) { return g.indexOf(was.id) >= 0; });
@@ -2605,7 +2760,7 @@ body.big .flylabel{font-size:26px}
     };
     document.addEventListener('pointerup', end);
     document.addEventListener('pointercancel', function (e) {
-      if (d && d.on) { d.card.classList.remove('dragging'); d.card.style.translate = ''; }
+      if (d && d.on) d.mem.forEach(function (c) { c.classList.remove('dragging'); c.style.translate = ''; });
       d = null; void e;
     });
   }
@@ -2654,6 +2809,12 @@ body.big .flylabel{font-size:26px}
       const b = e.target && e.target.closest ? e.target.closest('button') : null;
       if (!b || b.disabled || (b.contains && e.relatedTarget && b.contains(e.relatedTarget))) return;
       if (Sound.ctx !== undefined && Sound.on) Sound.hover();
+    }, true);
+    // typing sound in text boxes
+    document.addEventListener('keydown', function (e) {
+      const t = e.target;
+      if (!t || !t.tagName || !/^(INPUT|TEXTAREA)$/.test(t.tagName) || e.ctrlKey || e.metaKey || e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta') return;
+      Sound.unlock(); Sound.key();
     }, true);
     // soft click sound on every menu/game button
     document.addEventListener('click', function (e) {

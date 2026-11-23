@@ -477,6 +477,8 @@ body.big .flylabel{font-size:26px}
 .wg{transform-origin:150px 150px;transform-box:view-box}
 .wptr{position:absolute;left:50%;top:-6px;width:0;height:0;margin-left:-14px;border-left:14px solid transparent;border-right:14px solid transparent;border-top:30px solid #f3c34d;filter:drop-shadow(0 3px 0 #000a)}
 
+.laybar .goout{font-size:22px;padding:12px 22px;animation:buypulse .9s ease-in-out infinite}
+
 </style>
 </head>
 <body>
@@ -821,6 +823,35 @@ body.big .flylabel{font-size:26px}
     }
     return left.length ? null : plan;
   }
+  /* With exactly 2 cards in hand: can both be played on laid-down sets? Returns [{card, meldId, end}, ...] or null. */
+  function goOutPlan(melds, hand) {
+    if (!hand || hand.length !== 2) return null;
+    for (let order = 0; order < 2; order++) {
+      const a = hand[order], b = hand[1 - order];
+      for (let i = 0; i < melds.length; i++) {
+        const m = melds[i];
+        const aOpts = m.type === 'book' ? (layoffOptions(m, a).length ? ['add'] : []) : layoffOptions(m, a);
+        for (let k = 0; k < aOpts.length; k++) {
+          const ea = aOpts[k];
+          const plan = layoffPlan(m, [a], m.type === 'run' ? ea : undefined);
+          if (!plan) continue;
+          // the meld as it would look after card a
+          const m2 = { id: m.id, type: m.type, rank: m.rank, suit: m.suit, start: m.start, cards: m.cards.slice() };
+          if (m.type === 'book') { m2.cards.push(a); if (m2.rank === null && !isJoker(a)) m2.rank = a.r; }
+          else if (ea === 'low') { m2.cards.unshift(a); m2.start -= 1; } else m2.cards.push(a);
+          for (let j = 0; j < melds.length; j++) {
+            const target = j === i ? m2 : melds[j];
+            const bOpts = target.type === 'book' ? (layoffOptions(target, b).length ? ['add'] : []) : layoffOptions(target, b);
+            if (bOpts.length) {
+              const eb = target.type === 'run' ? (bOpts.indexOf('high') >= 0 ? 'high' : bOpts[0]) : 'add';
+              return [{ card: a, meldId: m.id, end: ea }, { card: b, meldId: target.id, end: eb }];
+            }
+          }
+        }
+      }
+    }
+    return null;
+  }
   function canLayoff(meld, card) { return layoffOptions(meld, card).length > 0; }
 
   /* The rank a card in a meld stands for (matters for jokers). */
@@ -1086,7 +1117,7 @@ body.big .flylabel{font-size:26px}
         if (!opts.length) return fail('That card does not fit there');
         let end = opts[0];
         if (opts.length > 1) end = opts.indexOf(a.end) >= 0 ? a.end : 'high';
-        if (me.hand.length === 1 && st.playStart !== 2) return fail('You can only go out by playing both of your 2 cards right after you draw. Keep a card, discard or end your turn, and go out next turn.');
+        if (me.hand.length < 3) return fail('Keep at least one card. To go out, you need exactly 2 cards that both play, then use Play both cards and go out. Otherwise discard.');
         const card = me.hand.splice(i, 1)[0];
         if (meld.type === 'book') {
           meld.cards.push(card);
@@ -1095,6 +1126,26 @@ body.big .flylabel{font-size:26px}
         else meld.cards.push(card);
         log(st, me.name + ' added ' + cardLabel(card) + ' to a set.');
         if (!me.hand.length) finishRound(st, idx);
+        return ok();
+      }
+
+      case 'goOut': {
+        if (st.phase !== 'play') return fail('Draw a card first');
+        if (!me.down) return fail('Go down before you can go out');
+        if (me.hand.length !== 2) return fail('You can only go out when you hold exactly 2 cards that both play');
+        const plan = goOutPlan(st.melds, me.hand);
+        if (!plan) return fail('Both cards have to fit on laid-down sets');
+        const played = [];
+        plan.forEach(function (pl) {
+          const meld = st.melds.find(function (m) { return m.id === pl.meldId; });
+          me.hand.splice(handIndex(me.hand, pl.card.id), 1);
+          if (meld.type === 'book') { meld.cards.push(pl.card); if (meld.rank === null && !isJoker(pl.card)) meld.rank = pl.card.r; }
+          else if (pl.end === 'low') { meld.cards.unshift(pl.card); meld.start -= 1; }
+          else meld.cards.push(pl.card);
+          played.push(cardLabel(pl.card));
+        });
+        log(st, me.name + ' played ' + played.join(' and ') + ' and went out.');
+        finishRound(st, idx);
         return ok();
       }
 
@@ -1113,7 +1164,7 @@ body.big .flylabel{font-size:26px}
         if (!cards.length) return fail('Pick at least one card');
         const plan = layoffPlan(meld, cards, a.end);
         if (!plan) return fail('Those cards do not all fit there');
-        if (cards.length === me.hand.length && st.playStart !== 2) return fail('You can only go out by playing both of your 2 cards right after you draw. Keep a card, discard or end your turn, and go out next turn.');
+        if (me.hand.length - cards.length < 2) return fail('Keep at least one card. To go out, you need exactly 2 cards that both play, then use Play both cards and go out. Otherwise discard.');
         plan.forEach(function (pl) {
           me.hand.splice(handIndex(me.hand, pl.card.id), 1);
           if (meld.type === 'book') { meld.cards.push(pl.card); if (meld.rank === null && !isJoker(pl.card)) meld.rank = pl.card.r; }
@@ -1184,7 +1235,7 @@ body.big .flylabel{font-size:26px}
       'Once you are down, you can add cards to anyone\'s laid-down sets on your turns, including the turn you go down.',
       'Buying: right after someone discards, anyone who has not gone down yet can press Buy to grab that card out of turn. The game pauses. Everyone ahead of the buyer (starting with the player whose turn it is) can Approve or Take it instead. A buyer also draws 1 extra card from the stock. You get 3 buys per round, and you cannot buy once you have gone down.',
       'Dead cards: when a card is bought, every card under it in the discard pile is dead. Nobody can take or buy a dead card, so the next player has to draw from the stock. New discards on top are live again.',
-      'You can go out by going down with every card in your hand. Otherwise, to go out you must start your play with exactly 2 cards (after drawing) and play both on sets. With more cards, play what you can, keep at least one card, and discard or end your turn.',
+      'You can go out by going down with every card in your hand. Otherwise, to go out you need exactly 2 cards in hand that both play on sets, then press Play both cards and go out. You can never lay off down to just 1 card, so discard instead and wait for a card that plays.',
       'When someone goes out, everyone else adds up what is left in their hand: Ace 15, 8 through King 10, 2 through 7 five, Joker 25.',
       'A round only ends when someone goes out. If the stock runs out, the discard pile is reshuffled.',
       'After round 6, the lowest total score wins.'
@@ -1196,7 +1247,7 @@ body.big .flylabel{font-size:26px}
     isJoker: isJoker, rankLabel: rankLabel, cardLabel: cardLabel, cardPoints: cardPoints, contractText: contractText,
     makeDeck: makeDeck, shuffle: shuffle,
     checkBook: checkBook, layoutRun: layoutRun, validateGroup: validateGroup,
-    isTopDead: isTopDead, layoffOptions: layoffOptions, layoffPlan: layoffPlan, canLayoff: canLayoff, meldRankAt: meldRankAt,
+    isTopDead: isTopDead, layoffOptions: layoffOptions, layoffPlan: layoffPlan, goOutPlan: goOutPlan, canLayoff: canLayoff, meldRankAt: meldRankAt,
     newGame: newGame, nextRound: nextRound, apply: apply, cancelBuy: cancelBuy, view: view, rulesSummary: rulesSummary,
     contractFor: contractFor
   };
@@ -1372,8 +1423,9 @@ body.big .flylabel{font-size:26px}
       const usedN = groups ? groups.reduce(function (n, g) { return n + g.ids.length; }, 0) : 0;
       if (groups && Math.random() < (cfg(level).downProb == null ? 1 : cfg(level).downProb)) return { type: 'down', groups: groups };
     } else {
+      if (me.hand.length === 2 && E.goOutPlan(st.melds, me.hand)) return { type: 'goOut' };
       for (const c of me.hand) {
-        if (me.hand.length === 1 && st.playStart !== 2) break;
+        if (me.hand.length <= 2) break;
         for (const m of st.melds) {
           const opts = E.layoffOptions(m, c);
           if (opts.length) return { type: 'layoff', id: c.id, meldId: m.id, end: opts.indexOf('high') >= 0 ? 'high' : 'low' };
@@ -1836,6 +1888,17 @@ body.big .flylabel{font-size:26px}
     if (v.lockMs > 0) lockTimer = setTimeout(function () { if (V === v) { v.lockMs = 0; render(); } }, v.lockMs + 40);
     render(ev, prev);
   }
+  /* In-page confirm box (the browser's own confirm() is blocked inside Claude artifacts). */
+  function askConfirm(msg, yesLabel, onYes) {
+    const old = document.getElementById('askbox'); if (old) old.remove();
+    const el = h('div', { class: 'overlay', id: 'askbox', onclick: function (e) { if (e.target === el) el.remove(); } },
+      h('div', { class: 'modal stack' },
+        h('h2', null, msg),
+        h('div', { class: 'row', style: 'justify-content:center;gap:12px;flex-wrap:wrap' },
+          h('button', { class: 'orange', onclick: function () { el.remove(); onYes(); } }, yesLabel),
+          h('button', { class: 'ghost', onclick: function () { el.remove(); } }, 'Stay'))));
+    document.body.append(el);
+  }
   function goHome() {
     if (net) net.leave();
     net = null; V = null; selected = new Set(); connBanner = ''; gameUI = null; building = false; bgroups = [];
@@ -2034,7 +2097,7 @@ body.big .flylabel{font-size:26px}
     parts.push(h('div', { class: 'bar' }, h('span', { class: 'chip' }, APP_NAME), h('span', { class: 'grow' }),
       bigBtn(), soundBtn(),
       h('button', { class: 'ghost small', onclick: function () { modal = 'rules'; render(); } }, 'Rules'),
-      h('button', { class: 'ghost small', onclick: function () { if (confirm('Leave this room?')) leaveRoom(); } }, 'Leave')));
+      h('button', { class: 'ghost small', onclick: function () { askConfirm('Leave this room?', 'Leave', leaveRoom); } }, 'Leave')));
     if (connBanner) parts.push(h('div', { class: 'conn' }, connBanner));
     if (V.online) {
       parts.push(h('div', { class: 'panel stack' },
@@ -2072,7 +2135,12 @@ body.big .flylabel{font-size:26px}
       if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(done, function () { fallback(); }); return; }
     } catch (e) { /* fall through */ }
     fallback();
-    function fallback() { window.prompt('Copy this:', text); }
+    function fallback() {
+      const inp = h('input', { value: text, readonly: true, style: 'width:100%;font-size:18px;text-align:center' });
+      const el = h('div', { class: 'overlay', id: 'copybox', onclick: function (e) { if (e.target === el) el.remove(); } },
+        h('div', { class: 'modal stack' }, h('h2', null, 'Copy this'), inp, h('button', { class: 'orange', onclick: function () { el.remove(); } }, 'Done')));
+      document.body.append(el); inp.focus(); inp.select();
+    }
   }
 
   /* ---------- the round table ---------- */
@@ -2127,7 +2195,7 @@ body.big .flylabel{font-size:26px}
       bigBtn(),
       soundBtn(),
       h('button', { class: 'ghost small', onclick: function () { modal = 'rules'; render(); } }, 'Rules'),
-      h('button', { class: 'ghost small', onclick: function () { if (confirm('Leave this game?')) leaveRoom(); } }, 'Leave'));
+      h('button', { class: 'ghost small', onclick: function () { askConfirm(V && V.hostId === V.youId ? 'Leave this game? It ends for everyone.' : 'Leave this game?', 'Leave', leaveRoom); } }, 'Leave'));
 
     const contract = h('div', { class: 'contract' },
       h('span', { class: 'rd' }, 'ROUND ' + V.round + '/' + V.rounds),
@@ -2418,12 +2486,12 @@ body.big .flylabel{font-size:26px}
     });
     let hint = '';
     if (canPlay) {
-      if (V.hand.length === 1) hint = gameUI.down ? (V.playStart === 2 ? 'Last card! Play it on a glowing set to go out, or End turn.' : 'Keep this card and End turn. Next turn, draw and play both cards to go out.') : 'Last card.';
+      if (V.hand.length === 1) hint = gameUI.down ? 'Keep this card and End turn. Next turn, draw a card, and if both play you can go out.' : 'Last card.';
       else if (sel.length >= 1) hint = gameUI.down ? 'Tap a glowing set to add ' + (sel.length > 1 ? 'these cards' : 'this card') + ', or select one card and tap the discard pile to discard it.' : 'Tap the discard pile to discard this card, or tap Go down first.';
       else hint = gameUI.down ? 'Tap a card to add it to a set, or select one and tap the discard pile.' : 'Select a card and tap the discard pile to discard it, or Go down with your sets.';
     }
     gameUI.hint.textContent = hint;
-    fillLayBar(many);
+    fillLayBar(many || []);
   }
   /* Quick buttons above the hand: add the selected card to ANY laid-down set, no scrolling needed. */
   function meldLabel(m) {
@@ -2438,6 +2506,10 @@ body.big .flylabel{font-size:26px}
     const bar = gameUI && gameUI.lay;
     if (!bar) return;
     bar.textContent = '';
+    if (gameUI.down && gameUI.canPlay && V.hand.length === 2 && E.goOutPlan(V.melds, V.hand)) {
+      bar.append(h('button', { class: 'green goout', onclick: function () { selected = new Set(); act({ type: 'goOut' }); } }, 'PLAY BOTH CARDS AND GO OUT'));
+      return;
+    }
     if (!cards || !cards.length) return;
     const btns = [];
     V.melds.forEach(function (m) {

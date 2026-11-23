@@ -283,7 +283,7 @@ td b{color:var(--gold);font-size:26px;font-weight:400}
 @media (min-width:900px){
   #app{max-width:1240px;padding:14px 22px 20px}
   .gamegrid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;align-items:start}
-  .ring{aspect-ratio:auto;height:clamp(330px,52vh,520px);max-height:none}
+  .ring{aspect-ratio:auto;height:clamp(330px,calc(var(--vh,1vh)*52),520px);max-height:none}
   .ring .felt{inset:10% 2% 10% 2%}
   .seat{min-width:116px;max-width:150px;font-size:19px;padding:5px 10px 6px}
   .seat .sfan{height:28px;width:84px}
@@ -298,7 +298,7 @@ td b{color:var(--gold);font-size:26px;font-weight:400}
   .back,.empty{width:64px;height:90px}
   .card.sm{width:44px;height:62px}
   .hand{min-height:170px;padding-top:40px}
-  .side{position:sticky;top:10px;max-height:calc(100vh - 20px);overflow:auto}
+  .side{position:sticky;top:10px;max-height:calc(var(--vh,1vh)*100 - 20px);overflow:auto}
   .log{text-align:left}
   .narrow{max-width:560px}
 }
@@ -355,7 +355,7 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
 
 /* ---------- laptop: fit the whole game in one screen, no page scrolling ---------- */
 @media (min-width:900px){
-  .gamewrap{height:calc(100vh - 36px);min-height:520px;gap:6px;overflow:hidden}
+  .gamewrap{height:calc(var(--vh,1vh)*100 - 36px);min-height:480px;gap:6px;overflow:hidden}
   .gamegrid{flex:1 1 auto;min-height:0;grid-template-rows:minmax(0,1fr);align-items:stretch}
   .main{min-height:0;height:100%}
   .ring{flex:1 1 auto;min-height:170px;height:auto;max-height:none}
@@ -399,6 +399,58 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
 .mc{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;min-width:15px;height:24px;line-height:1;font-size:10px;margin-left:-2px}
 .mc b{font-weight:400;font-size:11px}.mc i{font-style:normal;font-size:10px;margin-top:-1px}
 @media (min-width:900px){.mc{min-width:20px;height:32px;font-size:14px}.mc b{font-size:15px}.mc i{font-size:14px}}
+
+/* BUY lives in the status bar so it can never be hidden behind a seat */
+.banner.withbuy{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap}
+.buybig{font-size:26px;padding:8px 22px;white-space:nowrap;box-shadow:0 5px 0 #7a3d00,0 0 0 3px #fff3}
+@media (max-width:430px){.buybig{font-size:22px;padding:8px 14px}}
+
+/* ---- Big & simple view ---- */
+body.big #bg,body.big #crt{display:none}
+html:has(body.big){background:#0d1320}
+body.big *{animation:none !important}
+@media (max-width:899px){body.big .gamewrap,body.big .wrap{zoom:1.3}}
+@media (max-width:899px){body.big .gamewrap{height:auto;min-height:0;overflow:visible}}
+body.big .felt{background:#1f6b47;box-shadow:none}
+body.big .card .face{box-shadow:0 0 0 3px #000}
+body.big .muted,body.big .hint,body.big .log{color:#fff}
+body.big button{font-size:1.15em;border:3px solid #fff3}
+body.big .banner{font-size:1.25em;background:#2a1a00;border:3px solid var(--gold)}
+body.big .seat,body.big .panel{background:#0b1220;border:3px solid #9fb3cc}
+body.big .seat.turn{border-color:var(--gold);box-shadow:0 0 0 4px var(--gold)}
+body.big .msets .mc{min-width:24px;height:38px;font-size:16px}
+body.big .msets .mc b{font-size:18px}body.big .msets .mc i{font-size:16px}
+body.big .buybig{font-size:30px;padding:12px 26px}
+@media (max-width:430px){body.big .gamewrap,body.big .wrap{zoom:1.12}}
+@media (max-width:430px){body.big .bar{flex-wrap:wrap;gap:6px}body.big .bar button{font-size:1em;padding:6px 10px}}
+body.big .banner.withbuy{position:sticky;bottom:8px;z-index:40}
+
+/* Short laptop screens: never trap the Go-down buttons off-screen */
+@media (min-width:900px){
+  .gamewrap{overflow-y:auto;overflow-x:hidden}
+  .builder .actions{position:sticky;bottom:0;background:var(--panel);padding-top:6px;z-index:30}
+}
+@media (min-width:900px) and (max-height:820px){
+  .building .ring{display:none}
+}
+@media (min-width:900px){
+  .gamewrap.building{height:auto;min-height:0;overflow:visible}
+  .gamewrap.building .gamegrid{grid-template-rows:auto}
+  .gamewrap.building .main{height:auto}
+  .builder .actions{position:static}
+}
+@media (min-width:900px){
+  html:has(.gamewrap.building),body:has(.gamewrap.building){height:auto;min-height:100%;overflow-y:auto}
+}
+
+.pile.disc.ready .stackwrap{outline:4px dashed var(--gold);outline-offset:4px;border-radius:10px;animation:buypulse .9s ease-in-out infinite}
+.pile.disc{cursor:pointer}
+.diff{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+.ghostcard{filter:drop-shadow(0 0 10px var(--gold)) drop-shadow(0 6px 6px rgba(0,0,0,.5))}
+.flylabel{position:fixed;z-index:80;transform:translate(-50%,-100%);background:#1a1230ee;border:3px solid var(--gold);border-radius:10px;color:var(--gold);padding:4px 10px;font-size:18px;white-space:nowrap;pointer-events:none;animation:flylab 2.3s ease-out both}
+@keyframes flylab{0%{opacity:0;margin-top:8px}12%{opacity:1;margin-top:0}80%{opacity:1}100%{opacity:0;margin-top:-14px}}
+body.big .flylabel{font-size:26px}
 
 </style>
 </head>
@@ -1157,10 +1209,18 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
     return score;
   }
 
+  /* Difficulty: how picky bots are about taking cards, how often they blunder, and whether they buy. */
+  const LEVELS = {
+    easy:   { takeMin: 3,   blunder: 0.6, buyMin: 1e9, buyProb: 0, downProb: 0.5 },
+    normal: { takeMin: 1,   blunder: 0.15, buyMin: 3,  buyProb: 0.35, downProb: 0.85 },
+    hard:   { takeMin: 0.5, blunder: 0,   buyMin: 2,   buyProb: 0.9, downProb: 1 }
+  };
+  function cfg(level) { return LEVELS[level] || LEVELS.normal; }
+
   function topDiscard(st) { return st.discard[st.discard.length - 1]; }
 
   /* Would this player take the top discard as their draw? */
-  function wouldTake(st, pid) {
+  function wouldTake(st, pid, level) {
     const me = st.players.find(function (p) { return p.id === pid; });
     const top = topDiscard(st);
     if (!me || !top) return false;
@@ -1170,7 +1230,7 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
     const withTop = me.hand.concat([top]);
     const keep = pickDiscard({ hand: withTop, down: false }, contract);
     const after = withTop.filter(function (c) { return c !== keep; });
-    return potential(after, contract) - potential(me.hand, contract) >= 1;
+    return potential(after, contract) - potential(me.hand, contract) >= cfg(level).takeMin;
   }
 
   /* After you're down: how likely is this card to be playable on a set later? */
@@ -1199,23 +1259,23 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
       if (me.down) score = fitValue(c, melds || []) * 100 - E.cardPoints(c);
       else {
         const rest = hand.filter(function (x) { return x !== c; });
-        score = potential(rest, contract) * 100 - E.cardPoints(c);
+        score = -potential(rest, contract) * 100 - E.cardPoints(c);
       }
       if (score < bestScore) { bestScore = score; best = c; }
     });
     return best;
   }
 
-  function move(st, pid) {
+  function move(st, pid, level) {
     if (st.status !== 'playing' || st.pending) return null;
     const me = st.players.find(function (p) { return p.id === pid; });
     if (!me || st.players[st.turn].id !== pid) return null;
-    if (st.phase === 'draw') return { type: 'draw', from: wouldTake(st, pid) ? 'discard' : 'stock' };
+    if (st.phase === 'draw') return { type: 'draw', from: wouldTake(st, pid, level) ? 'discard' : 'stock' };
 
     const contract = E.RULES.contracts[st.round - 1];
     if (!me.down) {
       const groups = findDown(me.hand, contract);
-      if (groups) return { type: 'down', groups: groups };
+      if (groups && Math.random() < (cfg(level).downProb == null ? 1 : cfg(level).downProb)) return { type: 'down', groups: groups };
     } else {
       for (const c of me.hand) {
         for (const m of st.melds) {
@@ -1225,17 +1285,33 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
       }
     }
     if (me.hand.length === 1) return { type: 'end' };
-    const d = pickDiscard(me, contract, st.melds);
+    let d = pickDiscard(me, contract, st.melds);
+    if (Math.random() < cfg(level).blunder) {
+      const pool = me.hand.filter(function (c) { return !E.isJoker(c); });
+      if (pool.length) d = pool[Math.floor(Math.random() * pool.length)];
+    }
     return { type: 'discard', id: d.id };
   }
 
   /* Answer to someone else's buy: take the card only if it's their own turn and they want it. */
-  function respond(st, pid) {
+  function respond(st, pid, level) {
     const cur = st.players[st.turn];
-    return (cur.id === pid && wouldTake(st, pid)) ? 'take' : 'approve';
+    return (cur.id === pid && wouldTake(st, pid, level)) ? 'take' : 'approve';
   }
 
-  return { move: move, respond: respond, wouldTake: wouldTake, findDown: findDown, potential: potential };
+  /* Should this (eligible) bot press Buy on the card that was just discarded? */
+  function wantsBuy(st, pid, level) {
+    const c = cfg(level), me = st.players.find(function (p) { return p.id === pid; }), top = topDiscard(st);
+    if (!me || !top || me.down || c.buyProb <= 0) return false;
+    const contract = E.RULES.contracts[st.round - 1];
+    const withTop = me.hand.concat([top]);
+    const keep = pickDiscard({ hand: withTop, down: false }, contract);
+    const after = withTop.filter(function (x) { return x !== keep; });
+    const gain = E.isJoker(top) ? 99 : potential(after, contract) - potential(me.hand, contract);
+    return gain >= c.buyMin && Math.random() < c.buyProb;
+  }
+
+  return { move: move, respond: respond, wantsBuy: wantsBuy, wouldTake: wouldTake, findDown: findDown, potential: potential };
 });
 
 </script>
@@ -1408,6 +1484,15 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
         if (!isHost || !this.game || !this.game.pending) return;
         E.cancelBuy(this.game);
         break;
+      case 'level':
+        if (!isHost || ['easy', 'normal', 'hard'].indexOf(msg.level) < 0) return;
+        this.level = msg.level;
+        break;
+      case 'pause':
+        if (!isHost || !this.game) return;
+        this.paused = !!msg.on;
+        if (this.paused) { clearTimeout(this.botTimer); this.botTimer = null; clearTimeout(this.buyTimer); this.buyTimer = null; }
+        break;
       case 'addBot': {
         if (!isHost || this.game || this.seats.length >= E.RULES.maxPlayers) return;
         const used = this.seats.map(function (s) { return s.name; });
@@ -1449,7 +1534,7 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
         players: this.seats.map(function (s) { return { id: s.id, name: s.name, bot: s.bot, connected: s.connected }; })
       };
     }
-    v.code = this.code; v.hostId = this.me; v.online = this.online;
+    v.code = this.code; v.hostId = this.me; v.online = this.online; v.level = this.level || 'normal'; v.paused = !!this.paused;
     return v;
   };
   /* After each discard, the stock is locked for a moment so other players can press Buy. */
@@ -1477,32 +1562,55 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
     this.scheduleBot();
   };
   Host.prototype.scheduleBot = function () {
-    const self = this, g = this.game;
-    if (this.botTimer || !g || g.status !== 'playing') return;
+    const self = this, g = this.game, lvl = this.level || 'normal';
+    if (!g || g.status !== 'playing' || this.paused) return;
+    // bots may press Buy during the short window after a discard
+    if (!g.pending && g.buyOpen && this.lockLeft() > 0 && !this.buyTimer) {
+      const key = g.round + ':' + g.discardSeq;
+      if (this.botBuyKey !== key) {
+        this.botBuyKey = key;
+        const left = this.lockLeft();
+        this.buyTimer = setTimeout(function () {
+          self.buyTimer = null;
+          const g2 = self.game;
+          if (!g2 || g2.status !== 'playing' || g2.pending || self.paused || g2.discardSeq !== g.discardSeq || !g2.buyOpen) return;
+          const order = g2.players.map(function (p, i) { return i; }).filter(function (i) {
+            const p = g2.players[i];
+            return p.bot && i !== g2.turn && i !== g2.lastDiscarder && !p.down && p.buys < E.RULES.maxBuys;
+          }).sort(function () { return Math.random() - 0.5; });
+          for (let k = 0; k < order.length; k++) {
+            const p = g2.players[order[k]];
+            if (Bots.wantsBuy(g2, p.id, lvl)) { if (E.apply(g2, p.id, { type: 'buy' }).ok) { self.changed(); return; } }
+          }
+        }, Math.max(300, Math.min(left - 400, 700 + Math.random() * 900)));
+      }
+    }
+    if (this.botTimer) return;
     let delay = null;
     if (g.pending) {
-      if (g.pending.queue.some(function (q) { const p = g.players.find(function (x) { return x.id === q.id; }); return q.resp === 'pending' && p && p.bot; })) delay = 700 + Math.random() * 500;
+      if (g.pending.queue.some(function (q) { const p = g.players.find(function (x) { return x.id === q.id; }); return q.resp === 'pending' && p && p.bot; })) delay = 1200 + Math.random() * 800;
     } else if (g.players[g.turn].bot) {
-      delay = Math.max(900 + Math.random() * 600, this.lockLeft() + 250);
+      // about 10 seconds per bot turn: roughly 5s to draw, 5s to play and discard
+      delay = Math.max(4600 + Math.random() * 350, this.lockLeft() + 250);
     }
     if (delay === null) return;
     this.botTimer = setTimeout(function () {
       self.botTimer = null;
       const g2 = self.game;
-      if (!g2 || g2.status !== 'playing') return;
+      if (!g2 || g2.status !== 'playing' || self.paused) return;
       if (g2.pending) {
         const q = g2.pending.queue.find(function (x) { const p = g2.players.find(function (y) { return y.id === x.id; }); return x.resp === 'pending' && p && p.bot; });
-        if (q) E.apply(g2, q.id, { type: 'respond', choice: Bots.respond(g2, q.id) });
+        if (q) E.apply(g2, q.id, { type: 'respond', choice: Bots.respond(g2, q.id, lvl) });
       } else {
         const p = g2.players[g2.turn];
-        if (p.bot && self.lockLeft() <= 0) { const a = Bots.move(g2, p.id); if (a) E.apply(g2, p.id, a); }
+        if (p.bot && self.lockLeft() <= 0) { const a = Bots.move(g2, p.id, lvl); if (a) E.apply(g2, p.id, a); }
       }
       self.changed();
     }, delay);
   };
   Host.prototype.send = function (msg) { this.handle(this.me, msg); };
   Host.prototype.leave = function () {
-    clearTimeout(this.botTimer);
+    clearTimeout(this.botTimer); clearTimeout(this.buyTimer);
     this.seats.forEach(function (s) { if (s.conn) try { s.conn.close(); } catch (x) {} });
     if (this.peer) try { this.peer.destroy(); } catch (x) {}
   };
@@ -1714,6 +1822,28 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
     updateSelUI();
   }
 
+  /* Big & simple view for people who have trouble seeing small things. */
+  function applyBig(on) { document.body.classList.toggle('big', !!on); fitScreen(); }
+  /* Scale the whole table to whatever window it is in (laptops and desktops). Phones use their own layout. */
+  function fitScreen() {
+    const w = window.innerWidth, hh = window.innerHeight, app = document.getElementById('app');
+    let z = 1;
+    if (w >= 900) {
+      const big = document.body.classList.contains('big');
+      z = Math.min(hh / 800, w / 1250, 1.4) * (big ? 1.1 : 1);
+      z = Math.max(0.55, Math.min(z, hh / 560, w / 900));
+    }
+    z = Math.round(z * 100) / 100;
+    document.documentElement.style.setProperty('--vh', (hh / z / 100) + 'px');
+    if (app) app.style.zoom = z === 1 ? '' : String(z);
+  }
+  function bigBtn() {
+    const on = function () { return document.body.classList.contains('big'); };
+    const b = h('button', { class: 'ghost small', onclick: function () {
+      const v = !on(); applyBig(v); store('local', 'rummy.big', v ? 'on' : 'off'); b.textContent = v ? 'Big view: on' : 'Big view: off';
+    } }, on() ? 'Big view: on' : 'Big view: off');
+    return b;
+  }
   function soundBtn() {
     const b = h('button', { class: 'ghost small', onclick: function () { b.textContent = Sound.toggle() ? 'Sound: on' : 'Sound: off'; } }, Sound.on ? 'Sound: on' : 'Sound: off');
     return b;
@@ -1759,7 +1889,7 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
       h('div', { class: 'row', style: 'justify-content:center;flex-wrap:wrap' },
         h('button', { class: 'ghost small', onclick: function () { Sound.unlock(); const n = needName(); if (!n) return; net = new Host(n, false); net.changed(); } }, 'Practice vs computer'),
         h('button', { class: 'ghost small', onclick: function () { modal = 'rules'; render(); } }, 'How to play'),
-        soundBtn()));
+        bigBtn(), soundBtn()));
   }
 
   function lobbyScreen() {
@@ -1774,7 +1904,7 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
     });
     const parts = [];
     parts.push(h('div', { class: 'bar' }, h('span', { class: 'chip' }, APP_NAME), h('span', { class: 'grow' }),
-      soundBtn(),
+      bigBtn(), soundBtn(),
       h('button', { class: 'ghost small', onclick: function () { modal = 'rules'; render(); } }, 'Rules'),
       h('button', { class: 'ghost small', onclick: function () { if (confirm('Leave this room?')) leaveRoom(); } }, 'Leave')));
     if (connBanner) parts.push(h('div', { class: 'conn' }, connBanner));
@@ -1793,7 +1923,12 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
       h('h3', null, 'Players (' + V.players.length + '/' + E.RULES.maxPlayers + ')'),
       h('ul', { class: 'plist' }, items),
       h('div', { class: 'muted', style: 'font-size:16px' }, 'This many players will use ' + V.decks + ' decks (with jokers).'),
-      isHost && V.players.length < E.RULES.maxPlayers ? h('button', { class: 'ghost', onclick: function () { net.send({ t: 'addBot' }); } }, '+ Add a computer player') : null));
+      isHost && V.players.length < E.RULES.maxPlayers ? h('button', { class: 'ghost', onclick: function () { net.send({ t: 'addBot' }); } }, '+ Add a computer player') : null,
+      V.players.some(function (p) { return p.bot; }) ? h('div', { class: 'diff' },
+        h('span', { class: 'muted' }, 'Computer skill: '),
+        ['easy', 'normal', 'hard'].map(function (l) {
+          return h('button', { class: (V.level === l ? 'orange' : 'ghost') + ' small', disabled: !isHost, onclick: function () { net.send({ t: 'level', level: l }); } }, l[0].toUpperCase() + l.slice(1));
+        })) : null));
     if (isHost) {
       parts.push(h('button', { class: 'green', disabled: V.players.length < 2, onclick: function () { net.send({ t: 'start' }); } },
         V.players.length < 2 ? 'Need at least 2 players' : 'Start game'));
@@ -1859,6 +1994,8 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
     const bar = h('div', { class: 'bar' },
       V.online && V.code ? h('span', { class: 'chip' }, 'Room ' + V.code) : null,
       h('span', { class: 'grow' }),
+      V.hostId === V.youId && V.players.some(function (p) { return p.bot; }) ? h('button', { class: (V.paused ? 'orange' : 'ghost') + ' small', onclick: function () { net.send({ t: 'pause', on: !V.paused }); } }, V.paused ? 'Resume' : 'Pause') : null,
+      bigBtn(),
       soundBtn(),
       h('button', { class: 'ghost small', onclick: function () { modal = 'rules'; render(); } }, 'Rules'),
       h('button', { class: 'ghost small', onclick: function () { if (confirm('Leave this game?')) leaveRoom(); } }, 'Leave'));
@@ -1875,21 +2012,32 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
       onclick: canDraw ? function () { act({ type: 'draw', from: 'stock' }); } : (myTurn && V.phase === 'draw' ? function () { toast(buyWindowText()); } : null) },
       h('div', { class: 'stackwrap' }, V.stockCount ? h('div', { class: 'back' }) : h('div', { class: 'empty' })), h('span', null, 'Deck ' + V.stockCount));
     const discEl = h('div', { class: 'pile disc' + (canDraw && top ? ' can' : '') + (myTurn && V.phase === 'draw' && locked ? ' wait' : ''),
-      onclick: canDraw && top ? function () { act({ type: 'draw', from: 'discard' }); } : (myTurn && V.phase === 'draw' && top ? function () { toast(buyWindowText()); } : null) },
+      onclick: function () {
+        if (canDraw && top) { act({ type: 'draw', from: 'discard' }); return; }
+        if (canPlay && !building) {
+          const sel = V.hand.filter(function (c) { return selected.has(c.id); });
+          if (V.hand.length <= 1) toast('Your last card has to be played on a set.');
+          else if (sel.length === 1) { selected = new Set(); act({ type: 'discard', id: sel[0].id }); }
+          else toast('Tap one card in your hand, then tap the discard pile.');
+          return;
+        }
+        if (myTurn && V.phase === 'draw' && top) toast(buyWindowText());
+      } },
       h('div', { class: 'stackwrap' }, top ? cardEl(top, { zone: 'discard' }) : h('div', { class: 'empty' })), h('span', null, 'Discard'));
-    const buyBtn = canBuy ? h('button', { class: 'orange buybtn' + (V.lockMs > 0 ? ' hot' : ''), onclick: function () { act({ type: 'buy' }); } }, 'BUY (' + (V.maxBuys - me.buys) + ' left)') : null;
-    const center = h('div', { class: 'center-pile' }, h('div', { class: 'piles' }, stockEl, discEl), buyBtn);
+    const buyBtn = canBuy ? h('button', { class: 'orange buybig' + (V.lockMs > 0 ? ' hot' : ''), onclick: function () { act({ type: 'buy' }); } }, 'BUY THIS CARD (' + (V.maxBuys - me.buys) + ' left)') : null;
+    const center = h('div', { class: 'center-pile' }, h('div', { class: 'piles' }, stockEl, discEl));
 
     const ring = h('div', { class: 'ring n' + n },
       h('div', { class: 'felt' }), seats, center);
 
     let msg;
     if (V.status !== 'playing') msg = 'Round over';
+    else if (V.paused) msg = 'PAUSED: the computer players are waiting' + (V.hostId === V.youId ? '. Press Resume when ready.' : '.');
     else if (V.pending) msg = 'PAUSED: ' + (V.players.find(function (p) { return p.id === V.pending.buyer; }) || {}).name + ' wants to buy';
     else if (myTurn && V.phase === 'draw') msg = locked ? buyWindowText() : 'YOUR TURN: draw a card';
     else if (canPlay) msg = building ? 'Build your sets below' : (me.down ? 'Add cards to sets, then discard' : 'Go down, or just discard');
     else msg = locked ? buyWindowText() : cur.name + (cur.bot ? ' is thinking…' : "'s turn");
-    const banner = h('div', { class: 'banner' + (myTurn ? ' you' : '') + (ev && ev.myTurnStart ? ' pop' : '') }, msg);
+    const banner = h('div', { class: 'banner' + (myTurn ? ' you' : '') + (ev && ev.myTurnStart ? ' pop' : '') + (buyBtn ? ' withbuy' : '') }, h('span', null, msg), buyBtn);
 
     const sortedCards = sortedHand(V.hand);
     const handEl = h('div', { class: 'hand' }, sortedCards.map(function (c, i) {
@@ -1910,17 +2058,13 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
     if (building && canPlay) controls = builderPanel();
     else {
       const goBtn = canPlay && !me.down ? h('button', { class: 'green', onclick: function () { startBuilding(); } }, 'Go down') : null;
-      const discBtn = h('button', { class: 'red', disabled: true, onclick: function () {
-        const c = V.hand.find(function (x) { return selected.has(x.id); });
-        if (c) act({ type: 'discard', id: c.id });
-      } }, 'Discard');
       const endBtn = canPlay && V.hand.length === 1 ? h('button', { class: 'orange', onclick: function () { act({ type: 'end' }); } }, 'End turn') : null;
       const clearBtn = h('button', { class: 'ghost', disabled: true, onclick: function () { selected = new Set(); document.querySelectorAll('.hand .card.sel').forEach(function (e) { e.classList.remove('sel'); }); updateSelUI(); } }, 'Clear');
       const grpBtn = h('button', { class: 'yellow', disabled: true, onclick: function () { toggleGroup(); } }, 'Group');
       const sortBtn = h('button', { class: 'ghost', onclick: function () { sortMode = sortMode === 'suit' ? 'rank' : 'suit'; Sound.flip(); render(); } }, 'Sort: ' + (sortMode === 'custom' ? 'mine' : sortMode));
-      controls = h('div', { class: 'actions' }, goBtn, discBtn, endBtn, grpBtn, clearBtn, sortBtn);
+      controls = h('div', { class: 'actions' }, goBtn, endBtn, grpBtn, clearBtn, sortBtn);
       hint = h('div', { class: 'hint' });
-      gameUI = { canPlay: canPlay, down: !!(me && me.down), disc: discBtn, clear: clearBtn, grp: grpBtn, hint: hint };
+      gameUI = { canPlay: canPlay, down: !!(me && me.down), clear: clearBtn, grp: grpBtn, hint: hint };
     }
 
     // laid-down sets, grouped by who put them down
@@ -2110,7 +2254,8 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
     if (!V || !gameUI) return;
     const sel = V.hand.filter(function (c) { return selected.has(c.id); });
     const canPlay = gameUI.canPlay;
-    gameUI.disc.disabled = !(canPlay && sel.length === 1 && V.hand.length > 1);
+    const dp = document.querySelector('.pile.disc');
+    if (dp) dp.classList.toggle('ready', canPlay && sel.length === 1 && V.hand.length > 1);
     gameUI.clear.disabled = !sel.length;
     const inG = sel.some(function (c) { return groups.some(function (g) { return g.indexOf(c.id) >= 0; }); });
     gameUI.grp.textContent = inG ? 'Ungroup' : 'Group';
@@ -2125,8 +2270,8 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
     let hint = '';
     if (canPlay) {
       if (V.hand.length === 1) hint = gameUI.down ? 'Last card! Play it on a glowing set to go out, or End turn.' : 'Last card.';
-      else if (sel.length === 1) hint = gameUI.down ? 'Tap a glowing set to add this card, or Discard it.' : 'Discard this card, or tap Go down first.';
-      else hint = gameUI.down ? 'Tap a card to add it to a set, or discard one.' : 'Tap a card to discard it, or Go down with your sets.';
+      else if (sel.length === 1) hint = gameUI.down ? 'Tap a glowing set to add this card, or tap the discard pile to discard it.' : 'Tap the discard pile to discard this card, or tap Go down first.';
+      else hint = gameUI.down ? 'Tap a card to add it to a set, or select one and tap the discard pile.' : 'Select a card and tap the discard pile to discard it, or Go down with your sets.';
     }
     gameUI.hint.textContent = hint;
   }
@@ -2208,7 +2353,7 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
   }
   function chipRect(pid) { return rectOf(document.querySelector('.seat[data-pid="' + pid + '"]')); }
 
-  function flyFrom(el, from, delay, spin) {
+  function flyFrom(el, from, delay, spin, dur) {
     if (!el.animate || !from || FX.reduced) return;
     const to = el.getBoundingClientRect();
     if (!to.width) return;
@@ -2220,11 +2365,17 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
     const a = el.animate([
       { translate: dx + 'px ' + dy + 'px', scale: String(sc), rotate: (spin ? (Math.random() * 40 - 20) : 0) + 'deg' },
       { translate: '0 0', scale: '1', rotate: '0deg' }
-    ], { duration: 460, delay: delay || 0, easing: 'cubic-bezier(.2,.9,.25,1.12)', fill: 'backwards' });
+    ], { duration: dur || 460, delay: delay || 0, easing: 'cubic-bezier(.2,.9,.25,1.12)', fill: 'backwards' });
     a.onfinish = a.oncancel = function () { el.style.zIndex = ''; };
   }
 
-  function ghostFly(from, to, card) {
+  function cardName(c) {
+    if (!c) return 'a card';
+    if (E.isJoker(c)) return 'a Joker';
+    return 'the ' + E.rankLabel(c.r) + ' of ' + ({ H: 'hearts', D: 'diamonds', S: 'spades', C: 'clubs' }[c.s] || '');
+  }
+  /* A card flies from a pile to a player's seat: slow enough to follow, face-up when it came from the discard pile. */
+  function ghostFly(from, to, card, delay) {
     if (!document.body.animate || !from || !to || FX.reduced) return;
     const g = card ? cardEl(card, { oid: true }) : h('div', { class: 'back' });
     g.classList.add('ghostcard');
@@ -2234,12 +2385,23 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
     const dx = (to.left + to.width / 2) - (from.left + from.width / 2);
     const dy = (to.top + to.height / 2) - (from.top + from.height / 2);
     const a = g.animate([
-      { translate: '0 0', scale: '1', opacity: 1 },
-      { translate: dx + 'px ' + dy + 'px', scale: '.45', opacity: 0.2 }
-    ], { duration: 480, easing: 'cubic-bezier(.4,0,.2,1)' });
-    a.onfinish = function () { g.remove(); };
+      { translate: '0 0', scale: '1', opacity: 0, offset: 0 },
+      { translate: '0 0', scale: '1.25', opacity: 1, offset: 0.12 },
+      { translate: (dx * 0.12) + 'px ' + (dy * 0.12) + 'px', scale: '1.3', opacity: 1, offset: 0.3 },
+      { translate: dx + 'px ' + dy + 'px', scale: '0.6', opacity: 1, offset: 0.9 },
+      { translate: dx + 'px ' + dy + 'px', scale: '0.5', opacity: 0, offset: 1 }
+    ], { duration: 1100, delay: delay || 0, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'backwards' });
+    a.onfinish = a.oncancel = function () { g.remove(); };
   }
-
+  /* A short caption by the seat, like "Rita took the 7 of hearts". */
+  function flyLabel(pid, text) {
+    const r = chipRect(pid);
+    if (!r || FX.reduced) return;
+    const el = h('div', { class: 'flylabel' }, text);
+    el.style.left = (r.left + r.width / 2) + 'px'; el.style.top = (r.top - 4) + 'px';
+    document.body.append(el);
+    setTimeout(function () { el.remove(); }, 2400);
+  }
   function flights(before, ev, prev) {
     const app = document.getElementById('app');
     if (!app || !app.querySelectorAll) return;
@@ -2252,8 +2414,8 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
       if (!ev) return;
       if (zone === 'hand') {
         if (ev.newRound) { flyFrom(el, stockR, 120 + handN * 70, true); handN++; }
-        else if (ev.prevTop && ev.prevTop.id === id) flyFrom(el, before.disc, 0, true);
-        else flyFrom(el, before.stock || stockR, 0, true);
+        else if (ev.prevTop && ev.prevTop.id === id) flyFrom(el, before.disc, 0, true, 950);
+        else { flyFrom(el, before.stock || stockR, ev.buyerId ? 700 : 0, true, 950); }
       } else if (!ev.newRound && who) {
         flyFrom(el, chipRect(ev.actorId || who), 0, true);
       } else if (ev.newRound && zone === 'discard') {
@@ -2264,9 +2426,10 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
     const me = V ? V.players[meIdx(V)] : null;
     if (ev && prev && !ev.newRound && who && me && who !== me.id) {
       const seat = chipRect(who);
-      if (ev.buyerId) { if (ev.prevTop) ghostFly(before.disc, seat, ev.prevTop); ghostFly(before.stock, seat, null); }
-      else if (ev.drewStock) ghostFly(before.stock, seat, null);
-      else if (ev.tookDiscard && ev.prevTop) ghostFly(before.cards.get(ev.prevTop.id) || before.disc, seat, ev.prevTop);
+      const nm = (V.players.find(function (p) { return p.id === who; }) || {}).name || 'Someone';
+      if (ev.buyerId) { if (ev.prevTop) ghostFly(before.disc, seat, ev.prevTop, 0); ghostFly(before.stock, seat, null, 700); flyLabel(who, nm + ' BOUGHT ' + cardName(ev.prevTop)); }
+      else if (ev.drewStock) { ghostFly(before.stock, seat, null, 0); flyLabel(who, nm + ' drew from the deck'); }
+      else if (ev.tookDiscard && ev.prevTop) { ghostFly(before.cards.get(ev.prevTop.id) || before.disc, seat, ev.prevTop, 0); flyLabel(who, nm + ' took ' + cardName(ev.prevTop)); }
     }
   }
 
@@ -2412,6 +2575,8 @@ button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px
       '</defs></svg>';
     document.body.insertAdjacentHTML('afterbegin', sprite);
     if (store('local', 'rummy.crt') === 'off') document.body.classList.add('nocrt');
+    if (store('local', 'rummy.big') === 'on') applyBig(true);
+    fitScreen(); window.addEventListener('resize', fitScreen);
     const cv = document.getElementById('bg');
     if (cv && FX.background) bg = FX.background(cv);
     document.addEventListener('pointerdown', function () { Sound.unlock(); });

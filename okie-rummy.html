@@ -674,8 +674,8 @@ body.big .flylabel{font-size:26px}
     contracts: [{ b: 2, r: 0 }, { b: 0, r: 2 }, { b: 2, r: 1 }, { b: 1, r: 2 }, { b: 3, r: 0 }, { b: 0, r: 3 }],
     maxBuys: 3,            // per player, per round
     buyWindowMs: 3000,     // after a discard, the stock is locked this long so others can press Buy
-    maxReshuffles: 3,      // safety valve: after this many stock reshuffles the round ends in a stalemate
-    maxTurnsPerPlayer: 70  // safety valve: a round that drags past this many turns per player ends in a stalemate
+    maxReshuffles: Infinity,  // the discard pile is reshuffled whenever the stock runs out
+    maxTurnsPerPlayer: Infinity  // no stalemates: a round only ends when someone goes out
   };
 
   function isJoker(c) { return c.s === 'J'; }

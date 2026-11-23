@@ -666,7 +666,7 @@ body.big .flylabel{font-size:26px}
     minPlayers: 3,
     maxPlayers: 8,
     handSize: 11,
-    decksFor: function (n) { return n <= 2 ? 2 : (n <= 4 ? 3 : 4); },
+    decksFor: function (n) { return n <= 3 ? 2 : (n <= 5 ? 3 : 4); },
     jokersPerDeck: 2,
     bookMin: 3,
     runMin: 4,
@@ -1084,7 +1084,7 @@ body.big .flylabel{font-size:26px}
 
   function rulesSummary() {
     return [
-      '3 to 4 players use 3 decks, 5 or more use 4 decks. You need at least 3 players. Each deck has 2 jokers. Jokers are wild.',
+      '3 players use 2 decks, 4 to 5 players use 3 decks, 6 to 8 players use 4 decks. You need at least 3 players. Each deck has 2 jokers. Jokers are wild.',
       'Everyone gets 11 cards each round. One card starts the discard pile. Play goes clockwise.',
       'There are 6 rounds. To go down, you need: R1 2 books, R2 2 runs, R3 2 books + 1 run, R4 2 runs + 1 book, R5 3 books, R6 3 runs.',
       'Book: 3 or more of the same rank, any suits. Run: 4 or more in a row, same suit. Aces are low or high, never both ways around.',

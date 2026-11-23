@@ -452,6 +452,24 @@ body.big .banner.withbuy{position:sticky;bottom:8px;z-index:40}
 @keyframes flylab{0%{opacity:0;margin-top:8px}12%{opacity:1;margin-top:0}80%{opacity:1}100%{opacity:0;margin-top:-14px}}
 body.big .flylabel{font-size:26px}
 
+/* bigger "went down" announcement, above everything */
+.flash{z-index:90}
+.flashbox{padding:22px 26px;border-width:5px}
+.flashbox .ft{font-size:58px;line-height:1}
+.flashbox .fset .card{transform:scale(1.15)}
+@media (max-width:430px){.flashbox .ft{font-size:38px}}
+/* buy menu: your hand */
+.bhandbox{margin-top:4px}
+.bhand{display:flex;flex-wrap:wrap;justify-content:center;gap:2px;max-width:92vw}
+.bhand .card{margin:0 -6px 0 0}
+/* dead discard */
+.pile.disc.dead .stackwrap{filter:grayscale(1) brightness(.55);position:relative}
+.pile.disc.dead{cursor:not-allowed}
+.deadtag{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-14deg);background:#b3202a;color:#fff;border:3px solid #fff;border-radius:8px;padding:2px 10px;font-size:22px;filter:none;z-index:3;box-shadow:0 3px 0 #000a}
+/* quick add-to-set buttons */
+.laybar{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;align-items:center;margin:4px 0}
+.laybar:empty{display:none}
+
 </style>
 </head>
 <body>
@@ -793,7 +811,7 @@ body.big .flylabel{font-size:26px}
     const n = players.length;
     const st = {
       players: players.map(function (p) { return { id: p.id, name: p.name, bot: !!p.bot, hand: [], score: 0, down: false, buys: 0 }; }),
-      stock: [], discard: [], melds: [], meldSeq: 0,
+      stock: [], discard: [], deadBelow: 0, melds: [], meldSeq: 0,
       turn: 0, phase: 'draw', round: 0, dealer: Math.floor(rng() * n),
       status: 'playing', log: [], result: null, winnerIds: [],
       buyOpen: false, lastDiscarder: -1, discardSeq: 0, pending: null, reshuffles: 0, turns: 0
@@ -815,7 +833,7 @@ body.big .flylabel{font-size:26px}
     st.phase = 'draw';
     st.status = 'playing';
     st.result = null;
-    st.buyOpen = true; st.lastDiscarder = -1; st.pending = null; st.reshuffles = 0; st.turns = 0;  // the face-up starter card can be bought too
+    st.buyOpen = true; st.lastDiscarder = -1; st.pending = null; st.reshuffles = 0; st.turns = 0; st.deadBelow = 0;  // the face-up starter card can be bought too
     log(st, 'Round ' + st.round + ': ' + contractText(contractFor(st)) + '. ' + st.players[st.turn].name + ' goes first.');
   }
 
@@ -825,14 +843,23 @@ body.big .flylabel{font-size:26px}
     return ok();
   }
 
+  /* Cards that sat under a bought card are dead: nobody may take or buy them. */
+  function isTopDead(st) { return st.discard.length > 0 && st.discard.length <= (st.deadBelow || 0); }
+  function takeTop(st) {            // a normal pickup from the discard pile
+    const c = st.discard.pop();
+    if ((st.deadBelow || 0) > st.discard.length) st.deadBelow = st.discard.length;
+    return c;
+  }
+
   /* Draw one card from the stock, reshuffling the discard pile when it runs out. null if impossible. */
   function drawFromStock(st, rng) {
     if (!st.stock.length) {
       if (st.discard.length <= 1 || st.reshuffles >= RULES.maxReshuffles) return null;
       st.reshuffles += 1;
+      const wasDead = isTopDead(st);
       const top = st.discard.pop();
       st.stock = shuffle(st.discard, rng);
-      st.discard = [top];
+      st.discard = [top]; st.deadBelow = wasDead ? 1 : 0;
       log(st, 'The discard pile was reshuffled into a new stock.');
     }
     return st.stock.pop();
@@ -884,6 +911,7 @@ body.big .flylabel{font-size:26px}
     if (me.down) return fail("You can't buy once you've gone down");
     if (me.buys >= RULES.maxBuys) return fail('You have used all ' + RULES.maxBuys + ' of your buys this round');
     if (!st.discard.length) return fail('Nothing to buy');
+    if (isTopDead(st)) return fail('That card is dead. It was under a bought card, so nobody can take or buy it.');
     const n = st.players.length, queue = [];
     for (let i = st.turn; i !== idx; i = (i + 1) % n) {
       const p = st.players[i];
@@ -919,7 +947,9 @@ body.big .flylabel{font-size:26px}
     if (winner === null) winner = p.buyer;
     const wi = st.players.findIndex(function (x) { return x.id === winner; });
     const w = st.players[wi];
+    const bought = wi !== st.turn;
     const card = st.discard.pop();
+    if (!bought && (st.deadBelow || 0) > st.discard.length) st.deadBelow = st.discard.length;
     w.hand.push(card);
     if (wi === st.turn) {
       st.phase = 'play';
@@ -929,6 +959,8 @@ body.big .flylabel{font-size:26px}
       const extra = drawFromStock(st, rng);
       if (extra) w.hand.push(extra);
       log(st, w.name + ' bought the ' + cardLabel(card) + ' (buy ' + w.buys + ' of ' + RULES.maxBuys + ').');
+      st.deadBelow = st.discard.length;   // everything under a bought card is now dead
+      if (st.discard.length) log(st, 'The ' + cardLabel(st.discard[st.discard.length - 1]) + ' under it is dead.');
     }
     st.buyOpen = false;
     st.pending = null;
@@ -965,7 +997,8 @@ body.big .flylabel{font-size:26px}
         if (st.phase !== 'draw') return fail('You have already drawn this turn');
         if (a.from === 'discard') {
           if (!st.discard.length) return fail('The discard pile is empty');
-          const c = st.discard.pop();
+          if (isTopDead(st)) return fail('That card is dead (it was under a bought card). Draw from the stock.');
+          const c = takeTop(st);
           me.hand.push(c);
           log(st, me.name + ' took the ' + cardLabel(c) + ' from the discard pile.');
         } else {
@@ -1064,7 +1097,7 @@ body.big .flylabel{font-size:26px}
     return {
       status: st.status, round: st.round, rounds: RULES.contracts.length, contract: contractFor(st),
       turn: st.turn, phase: st.phase, dealer: st.dealer,
-      stockCount: st.stock.length, discard: st.discard.slice(-2), discardCount: st.discard.length,
+      stockCount: st.stock.length, discard: st.discard.slice(-2), discardCount: st.discard.length, discardDead: isTopDead(st),
       melds: st.melds, winnerIds: st.winnerIds, result: st.result,
       buyOpen: st.buyOpen, lastDiscarderId: st.lastDiscarder >= 0 ? st.players[st.lastDiscarder].id : null,
       discardSeq: st.discardSeq, maxBuys: RULES.maxBuys,
@@ -1091,9 +1124,10 @@ body.big .flylabel{font-size:26px}
       'Each turn: draw the top discard or a card from the stock. Then, if you have your contract, lay it all down (only on your own turn). Then discard.',
       'Once you are down, you can add cards to anyone\'s laid-down sets on your turns, including the turn you go down.',
       'Buying: right after someone discards, anyone who has not gone down yet can press Buy to grab that card out of turn. The game pauses. Everyone ahead of the buyer (starting with the player whose turn it is) can Approve or Take it instead. A buyer also draws 1 extra card from the stock. You get 3 buys per round, and you cannot buy once you have gone down.',
+      'Dead cards: when a card is bought, every card under it in the discard pile is dead. Nobody can take or buy a dead card, so the next player has to draw from the stock. New discards on top are live again.',
       'To go out, play every card in your hand. Your last card has to be played on a set, not discarded.',
       'When someone goes out, everyone else adds up what is left in their hand: Ace 15, 8 through King 10, 2 through 7 five, Joker 25.',
-      'If a round drags on forever (stock runs out three times, or about 70 turns each), it ends and everyone scores their hand.',
+      'A round only ends when someone goes out. If the stock runs out, the discard pile is reshuffled.',
       'After round 6, the lowest total score wins.'
     ];
   }
@@ -1103,7 +1137,7 @@ body.big .flylabel{font-size:26px}
     isJoker: isJoker, rankLabel: rankLabel, cardLabel: cardLabel, cardPoints: cardPoints, contractText: contractText,
     makeDeck: makeDeck, shuffle: shuffle,
     checkBook: checkBook, layoutRun: layoutRun, validateGroup: validateGroup,
-    layoffOptions: layoffOptions, canLayoff: canLayoff, meldRankAt: meldRankAt,
+    isTopDead: isTopDead, layoffOptions: layoffOptions, canLayoff: canLayoff, meldRankAt: meldRankAt,
     newGame: newGame, nextRound: nextRound, apply: apply, cancelBuy: cancelBuy, view: view, rulesSummary: rulesSummary,
     contractFor: contractFor
   };
@@ -1221,6 +1255,7 @@ body.big .flylabel{font-size:26px}
 
   /* Would this player take the top discard as their draw? */
   function wouldTake(st, pid, level) {
+    if (E.isTopDead && E.isTopDead(st)) return false;
     const me = st.players.find(function (p) { return p.id === pid; });
     const top = topDiscard(st);
     if (!me || !top) return false;
@@ -1302,7 +1337,7 @@ body.big .flylabel{font-size:26px}
   /* Should this (eligible) bot press Buy on the card that was just discarded? */
   function wantsBuy(st, pid, level) {
     const c = cfg(level), me = st.players.find(function (p) { return p.id === pid; }), top = topDiscard(st);
-    if (!me || !top || me.down || c.buyProb <= 0) return false;
+    if (!me || !top || me.down || c.buyProb <= 0 || (E.isTopDead && E.isTopDead(st))) return false;
     const contract = E.RULES.contracts[st.round - 1];
     const withTop = me.hand.concat([top]);
     const keep = pickDiscard({ hand: withTop, down: false }, contract);
@@ -1989,7 +2024,7 @@ body.big .flylabel{font-size:26px}
     const canPlay = myTurn && V.phase === 'play';
     const cur = V.players[V.turn];
     const canBuy = V.status === 'playing' && V.buyOpen && V.phase === 'draw' && !V.pending && V.turn !== myIdx &&
-      V.lastDiscarderId !== V.youId && me && !me.down && me.buys < V.maxBuys;
+      V.lastDiscarderId !== V.youId && me && !me.down && me.buys < V.maxBuys && !V.discardDead;
 
     const bar = h('div', { class: 'bar' },
       V.online && V.code ? h('span', { class: 'chip' }, 'Room ' + V.code) : null,
@@ -2011,8 +2046,9 @@ body.big .flylabel{font-size:26px}
     const stockEl = h('div', { class: 'pile stock' + (canDraw ? ' can' : '') + (myTurn && V.phase === 'draw' && locked ? ' wait' : ''),
       onclick: canDraw ? function () { act({ type: 'draw', from: 'stock' }); } : (myTurn && V.phase === 'draw' ? function () { toast(buyWindowText()); } : null) },
       h('div', { class: 'stackwrap' }, V.stockCount ? h('div', { class: 'back' }) : h('div', { class: 'empty' })), h('span', null, 'Deck ' + V.stockCount));
-    const discEl = h('div', { class: 'pile disc' + (canDraw && top ? ' can' : '') + (myTurn && V.phase === 'draw' && locked ? ' wait' : ''),
+    const discEl = h('div', { class: 'pile disc' + (V.discardDead ? ' dead' : '') + (canDraw && top && !V.discardDead ? ' can' : '') + (myTurn && V.phase === 'draw' && locked ? ' wait' : ''),
       onclick: function () {
+        if (canDraw && top && V.discardDead) { toast('That card is dead (it was under a bought card). Draw from the deck.'); return; }
         if (canDraw && top) { act({ type: 'draw', from: 'discard' }); return; }
         if (canPlay && !building) {
           const sel = V.hand.filter(function (c) { return selected.has(c.id); });
@@ -2023,7 +2059,7 @@ body.big .flylabel{font-size:26px}
         }
         if (myTurn && V.phase === 'draw' && top) toast(buyWindowText());
       } },
-      h('div', { class: 'stackwrap' }, top ? cardEl(top, { zone: 'discard' }) : h('div', { class: 'empty' })), h('span', null, 'Discard'));
+      h('div', { class: 'stackwrap' }, top ? cardEl(top, { zone: 'discard' }) : h('div', { class: 'empty' }), V.discardDead ? h('div', { class: 'deadtag' }, 'DEAD') : null), h('span', null, V.discardDead ? 'Dead' : 'Discard'));
     const buyBtn = canBuy ? h('button', { class: 'orange buybig' + (V.lockMs > 0 ? ' hot' : ''), onclick: function () { act({ type: 'buy' }); } }, 'BUY THIS CARD (' + (V.maxBuys - me.buys) + ' left)') : null;
     const center = h('div', { class: 'center-pile' }, h('div', { class: 'piles' }, stockEl, discEl));
 
@@ -2034,7 +2070,7 @@ body.big .flylabel{font-size:26px}
     if (V.status !== 'playing') msg = 'Round over';
     else if (V.paused) msg = 'PAUSED: the computer players are waiting' + (V.hostId === V.youId ? '. Press Resume when ready.' : '.');
     else if (V.pending) msg = 'PAUSED: ' + (V.players.find(function (p) { return p.id === V.pending.buyer; }) || {}).name + ' wants to buy';
-    else if (myTurn && V.phase === 'draw') msg = locked ? buyWindowText() : 'YOUR TURN: draw a card';
+    else if (myTurn && V.phase === 'draw') msg = locked ? buyWindowText() : (V.discardDead ? 'YOUR TURN: draw from the deck (the discard is dead)' : 'YOUR TURN: draw a card');
     else if (canPlay) msg = building ? 'Build your sets below' : (me.down ? 'Add cards to sets, then discard' : 'Go down, or just discard');
     else msg = locked ? buyWindowText() : cur.name + (cur.bot ? ' is thinking…' : "'s turn");
     const banner = h('div', { class: 'banner' + (myTurn ? ' you' : '') + (ev && ev.myTurnStart ? ' pop' : '') + (buyBtn ? ' withbuy' : '') }, h('span', null, msg), buyBtn);
@@ -2054,7 +2090,7 @@ body.big .flylabel{font-size:26px}
       } });
     }));
 
-    let controls, hint = null;
+    let controls, hint = null, layBar = null;
     if (building && canPlay) controls = builderPanel();
     else {
       const goBtn = canPlay && !me.down ? h('button', { class: 'green', onclick: function () { startBuilding(); } }, 'Go down') : null;
@@ -2064,7 +2100,8 @@ body.big .flylabel{font-size:26px}
       const sortBtn = h('button', { class: 'ghost', onclick: function () { sortMode = sortMode === 'suit' ? 'rank' : 'suit'; Sound.flip(); render(); } }, 'Sort: ' + (sortMode === 'custom' ? 'mine' : sortMode));
       controls = h('div', { class: 'actions' }, goBtn, endBtn, grpBtn, clearBtn, sortBtn);
       hint = h('div', { class: 'hint' });
-      gameUI = { canPlay: canPlay, down: !!(me && me.down), clear: clearBtn, grp: grpBtn, hint: hint };
+      layBar = h('div', { class: 'laybar' });
+      gameUI = { canPlay: canPlay, down: !!(me && me.down), clear: clearBtn, grp: grpBtn, hint: hint, lay: layBar };
     }
 
     // laid-down sets, grouped by who put them down
@@ -2078,7 +2115,7 @@ body.big .flylabel{font-size:26px}
       h('div', { class: 'panel meldpanel' }, h('h3', null, 'On the table'), ownerGroups),
       h('div', { class: 'log' }, V.log.slice(-4).map(function (l) { return h('div', null, l); })));
 
-    const main = h('div', { class: 'main' }, ring, banner, hand_(handEl), controls, hint);
+    const main = h('div', { class: 'main' }, ring, banner, hand_(handEl), layBar, controls, hint);
     const parts = [bar];
     if (connBanner) parts.push(h('div', { class: 'conn' }, connBanner));
     parts.push(contract, h('div', { class: 'gamegrid' }, main, side));
@@ -2232,6 +2269,9 @@ body.big .flylabel{font-size:26px}
         h('div', { class: 'row', style: 'justify-content:center' }, pd.card ? cardEl(pd.card, { oid: true }) : null),
         h('div', { class: 'muted', style: 'font-size:16px' }, 'The buyer also takes 1 extra card from the deck.'),
         rows.length ? h('ul', { class: 'qlist' }, rows) : h('div', { class: 'muted' }, 'Nobody else needs to approve.'),
+        V.hand && V.hand.length ? h('div', { class: 'bhandbox' },
+          h('div', { class: 'muted', style: 'font-size:16px' }, 'Your hand'),
+          h('div', { class: 'bhand' }, sortedHand(V.hand).map(function (c) { return cardEl(c, { sm: true, oid: true }); }))) : null,
         buttons));
   }
 
@@ -2274,6 +2314,33 @@ body.big .flylabel{font-size:26px}
       else hint = gameUI.down ? 'Tap a card to add it to a set, or select one and tap the discard pile.' : 'Select a card and tap the discard pile to discard it, or Go down with your sets.';
     }
     gameUI.hint.textContent = hint;
+    fillLayBar(one);
+  }
+  /* Quick buttons above the hand: add the selected card to ANY laid-down set, no scrolling needed. */
+  function meldLabel(m) {
+    const owner = (V.players.find(function (p) { return p.id === m.owner; }) || {});
+    const who = owner.id === V.youId ? 'your' : (owner.name || '?') + "'s";
+    const sym = { H: '♥', D: '♦', S: '♠', C: '♣' };
+    if (m.type === 'book') return who + ' book' + (m.rank ? ' of ' + E.rankLabel(m.rank) + 's' : '');
+    const end = m.start + m.cards.length - 1;
+    return who + ' run ' + (sym[m.suit] || '') + E.rankLabel(m.start) + '–' + E.rankLabel(end === 14 ? 1 : end);
+  }
+  function fillLayBar(one) {
+    const bar = gameUI && gameUI.lay;
+    if (!bar) return;
+    bar.textContent = '';
+    if (!one) return;
+    const btns = [];
+    V.melds.forEach(function (m) {
+      const opts = E.layoffOptions(m, one);
+      opts.forEach(function (o) {
+        const arrow = m.type === 'run' ? (o === 'low' ? ' (low end)' : ' (high end)') : '';
+        btns.push(h('button', { class: 'yellow small', onclick: function () { selected = new Set(); act({ type: 'layoff', id: one.id, meldId: m.id, end: o }); } }, 'Add to ' + meldLabel(m) + (opts.length > 1 ? arrow : '')));
+      });
+    });
+    if (!btns.length) return;
+    bar.append(h('span', { class: 'muted' }, 'Add this card to: '));
+    btns.forEach(function (b) { bar.append(b); });
   }
 
   /* The cards in your hand fan out and bob. Overlap automatically on narrow screens. */
@@ -2439,7 +2506,7 @@ body.big .flylabel{font-size:26px}
     const old = document.getElementById('flash'); if (old) old.remove();
     const el = h('div', { class: 'flash', id: 'flash', onclick: function () { el.remove(); } },
       h('div', { class: 'flashbox' },
-        h('div', { class: 'ft' }, (owner ? owner.name : 'Someone').toUpperCase() + ' WENT DOWN!'),
+        h('div', { class: 'ft' }, ownerId === V.youId ? 'YOU WENT DOWN!' : (owner ? owner.name : 'Someone').toUpperCase() + ' WENT DOWN!'),
         h('div', { class: 'fsets' }, melds.map(function (m) {
           return h('div', { class: 'fset' }, m.cards.map(function (c, i) {
             const as = E.isJoker(c) && (m.type === 'run' || m.rank) ? E.rankLabel(E.meldRankAt(m, i)) : null;
@@ -2448,7 +2515,7 @@ body.big .flylabel{font-size:26px}
         })),
         h('div', { class: 'fx' }, 'tap to close')));
     document.body.append(el);
-    clearTimeout(showFlash._t); showFlash._t = setTimeout(function () { el.remove(); }, 3600);
+    clearTimeout(showFlash._t); showFlash._t = setTimeout(function () { el.remove(); }, 5000);
   }
 
   function celebrate(ev, prev, before) {
@@ -2469,7 +2536,7 @@ body.big .flylabel{font-size:26px}
     if (ev.newMelds && ev.newMelds.length) {
       const byOwner = {};
       ev.newMelds.forEach(function (m) { (byOwner[m.owner] = byOwner[m.owner] || []).push(m); });
-      Object.keys(byOwner).forEach(function (oid) { if (oid !== V.youId) showFlash(oid, byOwner[oid]); });
+      Object.keys(byOwner).forEach(function (oid) { showFlash(oid, byOwner[oid]); });
     }
     (ev.newMelds || []).forEach(function (m) {
       setTimeout(function () {

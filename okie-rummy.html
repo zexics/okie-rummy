@@ -663,7 +663,7 @@ body.big .flylabel{font-size:26px}
   const SUIT_SYMBOL = { S: '♠', H: '♥', D: '♦', C: '♣', J: '★' };
 
   const RULES = {
-    minPlayers: 2,
+    minPlayers: 3,
     maxPlayers: 8,
     handSize: 11,
     decksFor: function (n) { return n <= 2 ? 2 : (n <= 4 ? 3 : 4); },
@@ -1084,7 +1084,7 @@ body.big .flylabel{font-size:26px}
 
   function rulesSummary() {
     return [
-      '2 players use 2 decks, 3 to 4 players use 3 decks, 5 or more use 4 decks. Each deck has 2 jokers. Jokers are wild.',
+      '3 to 4 players use 3 decks, 5 or more use 4 decks. You need at least 3 players. Each deck has 2 jokers. Jokers are wild.',
       'Everyone gets 11 cards each round. One card starts the discard pile. Play goes clockwise.',
       'There are 6 rounds. To go down, you need: R1 2 books, R2 2 runs, R3 2 books + 1 run, R4 2 runs + 1 book, R5 3 books, R6 3 runs.',
       'Book: 3 or more of the same rank, any suits. Run: 4 or more in a row, same suit. Aces are low or high, never both ways around.',
@@ -1917,7 +1917,7 @@ body.big .flylabel{font-size:26px}
           h('button', { class: 'ghost grow', onclick: function () { copy(link, 'Invite link copied'); } }, 'Copy link')) : null,
         isHost ? h('div', { class: 'center muted', style: 'font-size:14px' }, 'Everyone opens the game, types this code, and taps Join.') : null));
     } else {
-      parts.push(h('div', { class: 'panel center muted' }, 'Practice mode. Add computer players and start.'));
+      parts.push(h('div', { class: 'panel center muted' }, 'Practice mode. Add at least 2 computer players (3 players minimum) and start.'));
     }
     parts.push(h('div', { class: 'panel stack' },
       h('h3', null, 'Players (' + V.players.length + '/' + E.RULES.maxPlayers + ')'),
@@ -1930,8 +1930,8 @@ body.big .flylabel{font-size:26px}
           return h('button', { class: (V.level === l ? 'orange' : 'ghost') + ' small', disabled: !isHost, onclick: function () { net.send({ t: 'level', level: l }); } }, l[0].toUpperCase() + l.slice(1));
         })) : null));
     if (isHost) {
-      parts.push(h('button', { class: 'green', disabled: V.players.length < 2, onclick: function () { net.send({ t: 'start' }); } },
-        V.players.length < 2 ? 'Need at least 2 players' : 'Start game'));
+      parts.push(h('button', { class: 'green', disabled: V.players.length < E.RULES.minPlayers, onclick: function () { net.send({ t: 'start' }); } },
+        V.players.length < E.RULES.minPlayers ? 'Need at least 3 players' : 'Start game'));
     } else {
       parts.push(h('div', { class: 'panel center muted' }, 'Waiting for the host to start the game…'));
     }

@@ -1085,7 +1085,7 @@ body.dealing .hand .card{visibility:hidden}
   /* Once you've gone down you can't buy, and you can't buy after using all your buys. */
   function canBuyNow(p) { return !p.down && p.buys < RULES.maxBuys; }
 
-  function doBuy(st, idx) {
+  function doBuy(st, idx, rng) {
     if (st.pending) return fail('A buy is already waiting for approval');
     if (!st.buyOpen || st.phase !== 'draw') return fail('You can only buy right after a discard, before the next player draws');
     if (idx === st.turn) return fail("It's your turn. Just take the card.");
@@ -1099,12 +1099,13 @@ body.dealing .hand .card{visibility:hidden}
     for (let i = st.turn; i !== idx; i = (i + 1) % n) {
       const p = st.players[i];
       // Players who can't buy anymore (already down, or out of buys) have no say, so they're approved automatically.
-      // The player whose turn it is always keeps the right to take the card as their draw.
-      queue.push({ id: p.id, resp: (i !== st.turn && !canBuyNow(p)) ? 'approve' : 'pending' });
+      // Anyone who is down is never asked, even when it is their turn.
+      queue.push({ id: p.id, resp: (p.down || (i !== st.turn && !canBuyNow(p))) ? 'approve' : 'pending' });
     }
     const card = st.discard[st.discard.length - 1];
     st.pending = { buyer: me.id, cardId: card.id, queue: queue };
     log(st, me.name + ' wants to buy the ' + cardLabel(card) + '.');
+    resolvePending(st, rng || Math.random);   // if nobody ahead needs to be asked, the buy goes straight through
     return ok();
   }
 
@@ -1166,7 +1167,7 @@ body.dealing .hand .card{visibility:hidden}
     if (idx < 0) return fail('Unknown player');
     if (!a || !a.type) return fail('Bad action');
 
-    if (a.type === 'buy') return doBuy(st, idx);
+    if (a.type === 'buy') return doBuy(st, idx, rng);
     if (a.type === 'respond') return doRespond(st, idx, a.choice, rng);
     if (a.type === 'cancelBuy') {
       if (!st.pending || st.pending.buyer !== pid) return fail('Only the buyer can cancel');
@@ -2016,6 +2017,7 @@ body.dealing .hand .card{visibility:hidden}
     try { chatUpdate(prev, v); } catch (e) { /* chat must never break the game */ }
     const newRound = v.status === 'playing' && v.discardCount <= 1 && !v.players.some(function (p) { return p.down; }) && (!prev || prev.status !== 'playing' || prev.round !== v.round);
     const dealMs = E.RULES.dealMs || 0;
+    if (newRound) { autoLay = false; autoKey = ''; }
     if (newRound && dealMs > 0) { dealUntil = Date.now() + dealMs; document.body.classList.add('dealing'); setTimeout(function () { showDeal(v); }, 50); }
     if (newRound && v.round === 1) setTimeout(function () { showSpinner(v); }, 50 + dealMs);
     const mi = meIdx(v), me = v.players[mi];
@@ -2110,8 +2112,7 @@ body.dealing .hand .card{visibility:hidden}
     document.getElementById('app').textContent = '';
     document.getElementById('app').append(h('div', { class: 'home panel center' }, 'Reconnecting to room ' + l.code + '…'));
   }
-  let autoLay = false;
-  try { autoLay = localStorage.getItem('rummy.auto') === 'on'; } catch (e) { /* ignore */ }
+  let autoLay = false;           // auto-play always starts off, and is switched off again at the start of every round
   let freezeLocal = 0, freezeTimer = null, dealUntil = 0, autoKey = '';
   function frozenSecs() { return Math.max(0, Math.ceil((freezeLocal - Date.now()) / 1000)); }
   function act(a) {
@@ -2635,7 +2636,7 @@ body.dealing .hand .card{visibility:hidden}
       const clearBtn = h('button', { class: 'ghost', disabled: true, onclick: function () { selected = new Set(); document.querySelectorAll('.hand .card.sel').forEach(function (e) { e.classList.remove('sel'); }); updateSelUI(); } }, 'Clear');
       const grpBtn = h('button', { class: 'yellow', disabled: true, onclick: function () { toggleGroup(); } }, 'Group');
       const sortBtn = h('button', { class: 'ghost', onclick: function () { sortMode = sortMode === 'suit' ? 'rank' : 'suit'; Sound.flip(); render(); } }, 'Sort: ' + (sortMode === 'custom' ? 'mine' : sortMode));
-      const autoBtn = me && me.down ? h('button', { class: autoLay ? 'green' : 'ghost', title: 'On your turn the game draws, plays cards (jokers last) on sets, goes out when it can, and discards for you', onclick: function () { autoLay = !autoLay; store('local', 'rummy.auto', autoLay ? 'on' : 'off'); toast(autoLay ? 'Auto-play on: it will draw, play on sets, and discard for you.' : 'Auto-play off.'); render(); } }, 'Auto-play: ' + (autoLay ? 'ON' : 'OFF')) : null;
+      const autoBtn = me && me.down ? h('button', { class: autoLay ? 'green' : 'ghost', title: 'On your turn the game draws, plays cards (jokers last) on sets, goes out when it can, and discards for you', onclick: function () { autoLay = !autoLay; toast(autoLay ? 'Auto-play on: it will draw, play on sets, and discard for you.' : 'Auto-play off.'); render(); } }, 'Auto-play: ' + (autoLay ? 'ON' : 'OFF')) : null;
       controls = h('div', { class: 'actions' }, goBtn, endBtn, grpBtn, clearBtn, sortBtn, autoBtn);
       hint = h('div', { class: 'hint' });
       layBar = h('div', { class: 'laybar' });

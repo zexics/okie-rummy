@@ -1098,8 +1098,9 @@ body.dealing .hand .card{visibility:hidden}
     const n = st.players.length, queue = [];
     for (let i = st.turn; i !== idx; i = (i + 1) % n) {
       const p = st.players[i];
-      // Players who are down still get a say (they can approve); only players out of buys are approved automatically.
-      queue.push({ id: p.id, resp: (i !== st.turn && !canBuyNow(p) && !p.down) ? 'approve' : 'pending' });
+      // Players who can't buy anymore (already down, or out of buys) have no say, so they're approved automatically.
+      // The player whose turn it is always keeps the right to take the card as their draw.
+      queue.push({ id: p.id, resp: (i !== st.turn && !canBuyNow(p)) ? 'approve' : 'pending' });
     }
     const card = st.discard[st.discard.length - 1];
     st.pending = { buyer: me.id, cardId: card.id, queue: queue };

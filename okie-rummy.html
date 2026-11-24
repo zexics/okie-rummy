@@ -2253,8 +2253,12 @@ body.dealing .hand .card{visibility:hidden}
     // sort the loose cards into the slots that saved groups don't occupy
     if (sortMode !== 'custom') {
       const loose = cur.filter(function (id) { return !inGroup[id]; }).map(function (id) { return byId[id]; });
-      if (sortMode === 'rank') loose.sort(function (x, y) { return (x.s === 'J' ? 99 : x.r) - (y.s === 'J' ? 99 : y.r) || SUIT_ORDER[x.s] - SUIT_ORDER[y.s]; });
-      else loose.sort(function (x, y) { return SUIT_ORDER[x.s] - SUIT_ORDER[y.s] || x.r - y.r; });
+      // an ace sits at whichever end of its suit it is closest to (next to the K/Q, or next to the 2/3)
+      const lo = {}, hi = {};
+      hand.forEach(function (c) { if (c.s !== 'J' && c.r !== 1) { lo[c.s] = Math.min(lo[c.s] || 99, c.r); hi[c.s] = Math.max(hi[c.s] || 0, c.r); } });
+      const rv = function (c) { return c.s === 'J' ? 99 : (c.r === 1 && hi[c.s] && (14 - hi[c.s]) < (lo[c.s] - 1)) ? 14 : c.r; };
+      if (sortMode === 'rank') loose.sort(function (x, y) { return rv(x) - rv(y) || SUIT_ORDER[x.s] - SUIT_ORDER[y.s]; });
+      else loose.sort(function (x, y) { return SUIT_ORDER[x.s] - SUIT_ORDER[y.s] || rv(x) - rv(y); });
       let k = 0;
       cur = cur.map(function (id) { return inGroup[id] ? id : loose[k++].id; });
     }

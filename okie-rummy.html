@@ -1098,8 +1098,8 @@ body.dealing .hand .card{visibility:hidden}
     const n = st.players.length, queue = [];
     for (let i = st.turn; i !== idx; i = (i + 1) % n) {
       const p = st.players[i];
-      // Players who can't buy anymore can only approve, so they're approved automatically.
-      queue.push({ id: p.id, resp: (i !== st.turn && !canBuyNow(p)) ? 'approve' : 'pending' });
+      // Players who are down still get a say (they can approve); only players out of buys are approved automatically.
+      queue.push({ id: p.id, resp: (i !== st.turn && !canBuyNow(p) && !p.down) ? 'approve' : 'pending' });
     }
     const card = st.discard[st.discard.length - 1];
     st.pending = { buyer: me.id, cardId: card.id, queue: queue };
@@ -2214,26 +2214,57 @@ body.dealing .hand .card{visibility:hidden}
       h('div', { class: 'scrollx' }, tbl), h('div', { class: 'row', style: 'justify-content:center;margin-top:10px' }, h('button', { onclick: function () { el.remove(); } }, 'Close')));
   }
 
-  /* Auto-play: on your turn, once you are down, cards that fit a laid-down set are played for you (never below 2 cards). */
+  /* Auto-play: on your turn, once you are down, the game draws, plays cards that fit sets, goes out if it can, and discards for you. */
   let autoTimer = null;
-  function scheduleAuto() {
-    clearTimeout(autoTimer);
-    if (!autoLay || !V || V.status !== 'playing' || V.pending) return;
-    const mi = meIdx(V), me = V.players[mi];
-    if (!me || !me.down || V.turn !== mi || V.phase !== 'play' || V.hand.length <= 2 || frozenSecs() > 0 || building) return;
-    let pick = null;
-    for (let i = 0; i < V.hand.length && !pick; i++) {
-      const c = V.hand[i]; if (E.isJoker(c)) continue;
-      for (let j = 0; j < V.melds.length; j++) {
-        const opts = E.layoffOptions(V.melds[j], c);
-        if (opts.length) { pick = { type: 'layoff', id: c.id, meldId: V.melds[j].id, end: opts.indexOf('high') >= 0 ? 'high' : (opts.indexOf('low') >= 0 ? 'low' : undefined) }; break; }
+  function autoFit(c, melds) {                 // how likely a card is to play on a set later (higher = keep)
+    if (E.isJoker(c)) return 100;
+    let v = 0;
+    melds.forEach(function (m) {
+      if (m.type === 'book') { if (m.rank === c.r) v += 3; }
+      else if (m.suit === c.s) {
+        const end = m.start + m.cards.length - 1, r = c.r === 1 ? (end >= 12 ? 14 : 1) : c.r;
+        if (r === m.start - 1 || r === end + 1) v += 3; else if (r === m.start - 2 || r === end + 2) v += 1;
       }
+    });
+    return v;
+  }
+  let autoRetry = 0;
+  function scheduleAuto() {
+    const stop = function () { clearTimeout(autoTimer); autoTimer = null; };
+    if (!autoLay || !V || V.status !== 'playing' || V.pending) return stop();
+    const mi = meIdx(V), me = V.players[mi];
+    if (!me || !me.down || V.turn !== mi || frozenSecs() > 0 || building) return stop();
+    let pick = null;
+    if (V.phase === 'draw') {
+      if (V.lockMs > 0) return stop();                // the buy window is still open; we re-check when it closes
+      const top = V.discard[V.discard.length - 1];
+      const useTop = top && !V.discardDead && (E.isJoker(top) || V.melds.some(function (m) { return E.layoffOptions(m, top).length > 0; }));
+      pick = { type: 'draw', from: useTop ? 'discard' : 'stock' };
+    } else if (V.phase === 'play') {
+      if (V.hand.length === 2 && E.goOutPlan(V.melds, V.hand)) pick = { type: 'goOut' };
+      for (let i = 0; i < V.hand.length && !pick && V.hand.length > 2; i++) {
+        const c = V.hand[i]; if (E.isJoker(c)) continue;
+        for (let j = 0; j < V.melds.length; j++) {
+          const opts = E.layoffOptions(V.melds[j], c);
+          if (opts.length) { pick = { type: 'layoff', id: c.id, meldId: V.melds[j].id, end: opts.indexOf('high') >= 0 ? 'high' : (opts.indexOf('low') >= 0 ? 'low' : undefined) }; break; }
+        }
+      }
+      if (!pick && V.hand.length >= 2) {       // nothing plays: throw the card least likely to ever fit
+        let pool = V.hand.filter(function (c) { return !E.isJoker(c); }); if (!pool.length) pool = V.hand;
+        let best = null, bs = Infinity;
+        pool.forEach(function (c) { const sc = autoFit(c, V.melds) * 100 - E.cardPoints(c); if (sc < bs) { bs = sc; best = c; } });
+        pick = { type: 'discard', id: best.id };
+      } else if (!pick && V.hand.length === 1) pick = { type: 'end' };
     }
-    if (!pick) return;
-    const key = V.round + ':' + V.turn + ':' + V.hand.map(function (c) { return c.id; }).join(',') + ':' + V.melds.length;
-    if (key === autoKey) return;           // already tried this exact position
-    autoKey = key;
-    autoTimer = setTimeout(function () { if (autoLay) { Sound.layoff && Sound.layoff(); act(pick); } }, 450);
+    if (!pick) return stop();
+    const key = V.round + ':' + V.turn + ':' + V.phase + ':' + V.hand.map(function (c) { return c.id; }).join(',') + ':' + V.melds.length + ':' + V.discardSeq;
+    if (key === autoKey) return;           // this exact move is already queued or was just tried
+    stop(); autoKey = key; autoRetry = 0;
+    autoTimer = setTimeout(function () {
+      autoTimer = null;
+      if (autoLay) { try { if (pick.type === 'layoff') Sound.layoff(); } catch (e) { /* ignore */ } act(pick); }
+      setTimeout(function () { if (autoKey === key && autoRetry++ < 2) { autoKey = ''; scheduleAuto(); } }, 2500);   // if nothing happened, try again
+    }, pick.type === 'draw' ? 700 : 600);
   }
 
   function name() { return (document.getElementById('nm') && document.getElementById('nm').value.trim()) || store('local', 'rummy.name') || 'Player'; }
@@ -2340,7 +2371,7 @@ body.dealing .hand .card{visibility:hidden}
     layoutHand();
     fixOverlap();
     applyBubbles();
-    try { refreshScores(); scheduleAuto(); } catch (e) { /* extras must never break the game */ }
+    try { refreshScores(); scheduleAuto(); } catch (e) { console.error('extras', e && e.stack); }
     freezeTick();
     if (bg) bg.setMood(V && V.status === 'playing' ? (V.turn === meIdx(V) ? 0.95 : 0.1) : 0.5);
     if (modal === 'rules') { const old = document.getElementById('rules-modal'); if (old) old.remove(); document.body.append(rulesModal()); }
@@ -2601,7 +2632,7 @@ body.dealing .hand .card{visibility:hidden}
       const clearBtn = h('button', { class: 'ghost', disabled: true, onclick: function () { selected = new Set(); document.querySelectorAll('.hand .card.sel').forEach(function (e) { e.classList.remove('sel'); }); updateSelUI(); } }, 'Clear');
       const grpBtn = h('button', { class: 'yellow', disabled: true, onclick: function () { toggleGroup(); } }, 'Group');
       const sortBtn = h('button', { class: 'ghost', onclick: function () { sortMode = sortMode === 'suit' ? 'rank' : 'suit'; Sound.flip(); render(); } }, 'Sort: ' + (sortMode === 'custom' ? 'mine' : sortMode));
-      const autoBtn = me && me.down ? h('button', { class: autoLay ? 'green' : 'ghost', title: 'On your turn, automatically play any card that fits on a laid-down set (keeps your last 2 cards)', onclick: function () { autoLay = !autoLay; store('local', 'rummy.auto', autoLay ? 'on' : 'off'); toast(autoLay ? 'Auto-play on: cards that fit sets are played for you on your turn.' : 'Auto-play off.'); render(); } }, 'Auto-play sets: ' + (autoLay ? 'ON' : 'OFF')) : null;
+      const autoBtn = me && me.down ? h('button', { class: autoLay ? 'green' : 'ghost', title: 'On your turn the game draws, plays cards on sets, goes out when it can, and discards for you', onclick: function () { autoLay = !autoLay; store('local', 'rummy.auto', autoLay ? 'on' : 'off'); toast(autoLay ? 'Auto-play on: it will draw, play on sets, and discard for you.' : 'Auto-play off.'); render(); } }, 'Auto-play: ' + (autoLay ? 'ON' : 'OFF')) : null;
       controls = h('div', { class: 'actions' }, goBtn, endBtn, grpBtn, clearBtn, sortBtn, autoBtn);
       hint = h('div', { class: 'hint' });
       layBar = h('div', { class: 'laybar' });
@@ -2743,7 +2774,8 @@ body.dealing .hand .card{visibility:hidden}
         h('button', { class: 'orange', onclick: function () {
           const g = Bots.findDown(V.hand, V.contract);
           if (!g) { toast("You can't go down with this hand yet."); return; }
-          bgroups = g.map(function (x, i) { return sortGroup(x.type, x.ids); }); bactive = 0; Sound.meld(); render();
+          const pd2 = E.planDown(V.hand, g); const gg = pd2 && !pd2.error ? pd2.groups : g;
+          bgroups = gg.map(function (x) { return sortGroup(x.type, x.ids); }); bactive = 0; Sound.meld(); render();
         } }, 'Auto'),
         h('button', { class: 'ghost', onclick: function () { building = false; bgroups = []; render(); } }, 'Cancel')));
   }
@@ -2773,7 +2805,8 @@ body.dealing .hand .card{visibility:hidden}
     const buttons = [];
     if (mine && mine.resp === 'pending') {
       buttons.push(h('button', { class: 'green', onclick: function () { act({ type: 'respond', choice: 'approve' }); } }, 'Approve'));
-      buttons.push(h('button', { class: 'orange', onclick: function () { act({ type: 'respond', choice: 'take' }); } }, mine.id === curId ? 'Take it (free draw)' : 'Take it instead'));
+      const myP = V.players.find(function (p) { return p.id === V.youId; }) || {};
+      if (mine.id === curId || (!myP.down && myP.buys < V.maxBuys)) buttons.push(h('button', { class: 'orange', onclick: function () { act({ type: 'respond', choice: 'take' }); } }, mine.id === curId ? 'Take it (free draw)' : 'Take it instead'));
     } else if (mine) buttons.push(h('div', { class: 'center muted' }, 'Waiting for the others…'));
     if (pd.buyer === V.youId) buttons.push(h('button', { class: 'ghost', onclick: function () { act({ type: 'cancelBuy' }); } }, 'Cancel my buy'));
     if (isHost && pd.buyer !== V.youId) buttons.push(h('button', { class: 'ghost small', onclick: function () { net.send({ t: 'forceCancel' }); } }, 'Cancel this buy (host)'));

@@ -726,7 +726,8 @@ body.big .flylabel{font-size:26px}
     // books / runs required to go down, one entry per round
     contracts: [{ b: 2, r: 0 }, { b: 0, r: 2 }, { b: 2, r: 1 }, { b: 1, r: 2 }, { b: 3, r: 0 }, { b: 0, r: 3 }],
     maxBuys: 3,            // per player, per round
-    buyWindowMs: 3000,     // after a discard, the stock is locked this long so others can press Buy
+    buyWindowMs: 3000,
+  lookMs: 10000,     // after a discard, the stock is locked this long so others can press Buy
     maxReshuffles: Infinity,  // the discard pile is reshuffled whenever the stock runs out
     maxTurnsPerPlayer: Infinity  // no stalemates: a round only ends when someone goes out
   };
@@ -1632,6 +1633,7 @@ body.big .flylabel{font-size:26px}
     switch (msg.t) {
       case 'act': {
         if (!this.game) return;
+        if (Date.now() < (this.freezeUntil || 0)) { this.err(pid, 'Take a moment to look at your cards first.'); return; }
         const a = msg.a || {};
         if (a.type === 'draw' && this.lockLeft() > 0) { this.err(pid, 'Hold on a second, someone may buy that card first.'); return; }
         const r = E.apply(this.game, pid, a);
@@ -1721,7 +1723,7 @@ body.big .flylabel{font-size:26px}
         players: this.seats.map(function (s) { return { id: s.id, name: s.name, bot: s.bot, connected: s.connected }; })
       };
     }
-    v.code = this.code; v.hostId = this.me; v.online = this.online; v.level = this.level || 'normal'; v.paused = !!this.paused; v.speed = this.speed || 1; v.chat = this.chat || [];
+    v.code = this.code; v.hostId = this.me; v.online = this.online; v.level = this.level || 'normal'; v.paused = !!this.paused; v.speed = this.speed || 1; v.chat = this.chat || []; v.freezeMs = Math.max(0, (this.freezeUntil || 0) - Date.now());
     return v;
   };
   /* After each discard, the stock is locked for a moment so other players can press Buy. */
@@ -1741,10 +1743,11 @@ body.big .flylabel{font-size:26px}
     // start of a round: give everyone a few moments to look at their cards before any computer acts
     if (g.status === 'playing' && this.graceRound !== g.round) {
       this.graceRound = g.round;
-      if (g.players.some(function (p) { return p.bot; })) {
-        this.graceStart = Date.now();
-        if (g.buyOpen && lock) lock = Math.max(lock, 9000 / (this.speed || 1));
-      }
+      if (E.RULES.lookMs > 0) {
+        // nobody can do anything for the first 10 seconds of a round (round 1 also has the first-player wheel)
+        this.freezeUntil = Date.now() + (g.round === 1 ? 7500 : 0) + E.RULES.lookMs;
+        if (g.buyOpen && lock) lock += this.freezeUntil - Date.now();
+      } else this.freezeUntil = 0;
     }
     this.lockUntil = lock ? Date.now() + lock : 0;
   };
@@ -1779,7 +1782,7 @@ body.big .flylabel{font-size:26px}
             const p = g2.players[order[k]];
             if (Bots.wantsBuy(g2, p.id, lvl)) { if (E.apply(g2, p.id, { type: 'buy' }).ok) { self.changed(); return; } }
           }
-        }, Math.max(300, Math.min(left - 400, (3800 + Math.random() * 1400) / (self.speed || 1)), (self.graceStart ? self.graceStart + 9000 / (self.speed || 1) : 0) - Date.now() + 200));
+        }, Math.max(300, Math.min(left - 400, (3800 + Math.random() * 1400) / (self.speed || 1)), (self.freezeUntil || 0) - Date.now() + 200));
       }
     }
     if (this.botTimer) return;
@@ -1788,7 +1791,7 @@ body.big .flylabel{font-size:26px}
       if (g.pending.queue.some(function (q) { const p = g.players.find(function (x) { return x.id === q.id; }); return q.resp === 'pending' && p && p.bot; })) delay = (1200 + Math.random() * 800) / (this.speed || 1);
     } else if (g.players[g.turn].bot) {
       // about 10 seconds per bot turn: roughly 5s to draw, 5s to play and discard
-      delay = Math.max((4600 + Math.random() * 350) / (this.speed || 1), this.lockLeft() + 250, (this.graceStart ? this.graceStart + 9000 / (this.speed || 1) : 0) - Date.now() + 300);
+      delay = Math.max((4600 + Math.random() * 350) / (this.speed || 1), this.lockLeft() + 250, (this.freezeUntil || 0) - Date.now() + 300);
     }
     if (delay === null) return;
     this.botTimer = setTimeout(function () {
@@ -1915,7 +1918,7 @@ body.big .flylabel{font-size:26px}
     if (prev && prev.status !== 'lobby') {
       lastScores = {}; prev.players.forEach(function (p) { lastScores[p.id] = p.score; });
     } else lastScores = {};
-    V = v;
+    V = v; freezeLocal = Date.now() + (v.freezeMs || 0);
     try { chatUpdate(prev, v); } catch (e) { /* chat must never break the game */ }
     if (v.status === 'playing' && v.round === 1 && (!prev || prev.status !== 'playing') && v.discardCount <= 1 && !v.players.some(function (p) { return p.down; })) setTimeout(function () { showSpinner(v); }, 50);
     const mi = meIdx(v), me = v.players[mi];
@@ -2010,7 +2013,21 @@ body.big .flylabel{font-size:26px}
     document.getElementById('app').textContent = '';
     document.getElementById('app').append(h('div', { class: 'home panel center' }, 'Reconnecting to room ' + l.code + '…'));
   }
-  function act(a) { if (net) net.send({ t: 'act', a: a }); }
+  let freezeLocal = 0, freezeTimer = null;
+  function frozenSecs() { return Math.max(0, Math.ceil((freezeLocal - Date.now()) / 1000)); }
+  function act(a) {
+    if (frozenSecs() > 0) { toast('Take a moment to look at your cards first.'); return; }
+    if (net) net.send({ t: 'act', a: a });
+  }
+  function freezeTick() {
+    if (freezeTimer) { clearInterval(freezeTimer); freezeTimer = null; }
+    if (frozenSecs() <= 0) return;
+    freezeTimer = setInterval(function () {
+      const s = frozenSecs(), sp = document.querySelector('.banner span');
+      if (s <= 0) { clearInterval(freezeTimer); freezeTimer = null; render(); return; }
+      if (sp && V && V.status === 'playing') sp.textContent = 'LOOK AT YOUR CARDS: ' + Math.min(10, s);
+    }, 250);
+  }
   function name() { return (document.getElementById('nm') && document.getElementById('nm').value.trim()) || store('local', 'rummy.name') || 'Player'; }
 
   /* =====================================================
@@ -2101,6 +2118,7 @@ body.big .flylabel{font-size:26px}
     layoutHand();
     fixOverlap();
     applyBubbles();
+    freezeTick();
     if (bg) bg.setMood(V && V.status === 'playing' ? (V.turn === meIdx(V) ? 0.95 : 0.1) : 0.5);
     if (modal === 'rules') { const old = document.getElementById('rules-modal'); if (old) old.remove(); document.body.append(rulesModal()); }
     else { const m = document.getElementById('rules-modal'); if (m) m.remove(); }
@@ -2319,14 +2337,15 @@ body.big .flylabel{font-size:26px}
         if (myTurn && V.phase === 'draw' && top) toast(buyWindowText());
       } },
       h('div', { class: 'stackwrap' }, top ? cardEl(top, { zone: 'discard' }) : h('div', { class: 'empty' }), V.discardDead ? h('div', { class: 'deadtag' }, 'DEAD') : null), h('span', null, V.discardDead ? 'Dead' : 'Discard'));
-    const buyBtn = canBuy ? h('button', { class: 'orange buybig' + (V.lockMs > 0 ? ' hot' : ''), onclick: function () { act({ type: 'buy' }); } }, 'BUY THIS CARD (' + (V.maxBuys - me.buys) + ' left)') : null;
+    const buyBtn = canBuy && frozenSecs() <= 0 ? h('button', { class: 'orange buybig' + (V.lockMs > 0 ? ' hot' : ''), onclick: function () { act({ type: 'buy' }); } }, 'BUY THIS CARD (' + (V.maxBuys - me.buys) + ' left)') : null;
     const center = h('div', { class: 'center-pile' }, h('div', { class: 'piles' }, stockEl, discEl));
 
     const ring = h('div', { class: 'ring n' + n },
       h('div', { class: 'felt' }), seats, center);
 
     let msg;
-    if (V.status !== 'playing') msg = 'Round over';
+    if (V.status === 'playing' && frozenSecs() > 0) msg = 'LOOK AT YOUR CARDS: ' + Math.min(10, frozenSecs());
+    else if (V.status !== 'playing') msg = 'Round over';
     else if (V.paused) msg = 'PAUSED: the computer players are waiting' + (V.hostId === V.youId ? '. Press Resume when ready.' : '.');
     else if (V.pending) msg = 'PAUSED: ' + (V.players.find(function (p) { return p.id === V.pending.buyer; }) || {}).name + ' wants to buy';
     else if (myTurn && V.phase === 'draw') msg = locked ? buyWindowText() : (V.discardDead ? 'YOUR TURN: draw from the deck (the discard is dead)' : 'YOUR TURN: draw a card');

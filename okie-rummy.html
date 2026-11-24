@@ -2243,11 +2243,13 @@ body.dealing .hand .card{visibility:hidden}
       pick = { type: 'draw', from: useTop ? 'discard' : 'stock' };
     } else if (V.phase === 'play') {
       if (V.hand.length === 2 && E.goOutPlan(V.melds, V.hand)) pick = { type: 'goOut' };
-      for (let i = 0; i < V.hand.length && !pick && V.hand.length > 2; i++) {
-        const c = V.hand[i]; if (E.isJoker(c)) continue;
-        for (let j = 0; j < V.melds.length; j++) {
-          const opts = E.layoffOptions(V.melds[j], c);
-          if (opts.length) { pick = { type: 'layoff', id: c.id, meldId: V.melds[j].id, end: opts.indexOf('high') >= 0 ? 'high' : (opts.indexOf('low') >= 0 ? 'low' : undefined) }; break; }
+      for (let pass = 0; pass < 2 && !pick && V.hand.length > 2; pass++) {   // real cards first, jokers last
+        for (let i = 0; i < V.hand.length && !pick; i++) {
+          const c = V.hand[i]; if (E.isJoker(c) !== (pass === 1)) continue;
+          for (let j = 0; j < V.melds.length; j++) {
+            const opts = E.layoffOptions(V.melds[j], c);
+            if (opts.length) { pick = { type: 'layoff', id: c.id, meldId: V.melds[j].id, end: opts.indexOf('high') >= 0 ? 'high' : (opts.indexOf('low') >= 0 ? 'low' : undefined) }; break; }
+          }
         }
       }
       if (!pick && V.hand.length >= 2) {       // nothing plays: throw the card least likely to ever fit
@@ -2633,7 +2635,7 @@ body.dealing .hand .card{visibility:hidden}
       const clearBtn = h('button', { class: 'ghost', disabled: true, onclick: function () { selected = new Set(); document.querySelectorAll('.hand .card.sel').forEach(function (e) { e.classList.remove('sel'); }); updateSelUI(); } }, 'Clear');
       const grpBtn = h('button', { class: 'yellow', disabled: true, onclick: function () { toggleGroup(); } }, 'Group');
       const sortBtn = h('button', { class: 'ghost', onclick: function () { sortMode = sortMode === 'suit' ? 'rank' : 'suit'; Sound.flip(); render(); } }, 'Sort: ' + (sortMode === 'custom' ? 'mine' : sortMode));
-      const autoBtn = me && me.down ? h('button', { class: autoLay ? 'green' : 'ghost', title: 'On your turn the game draws, plays cards on sets, goes out when it can, and discards for you', onclick: function () { autoLay = !autoLay; store('local', 'rummy.auto', autoLay ? 'on' : 'off'); toast(autoLay ? 'Auto-play on: it will draw, play on sets, and discard for you.' : 'Auto-play off.'); render(); } }, 'Auto-play: ' + (autoLay ? 'ON' : 'OFF')) : null;
+      const autoBtn = me && me.down ? h('button', { class: autoLay ? 'green' : 'ghost', title: 'On your turn the game draws, plays cards (jokers last) on sets, goes out when it can, and discards for you', onclick: function () { autoLay = !autoLay; store('local', 'rummy.auto', autoLay ? 'on' : 'off'); toast(autoLay ? 'Auto-play on: it will draw, play on sets, and discard for you.' : 'Auto-play off.'); render(); } }, 'Auto-play: ' + (autoLay ? 'ON' : 'OFF')) : null;
       controls = h('div', { class: 'actions' }, goBtn, endBtn, grpBtn, clearBtn, sortBtn, autoBtn);
       hint = h('div', { class: 'hint' });
       layBar = h('div', { class: 'laybar' });

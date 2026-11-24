@@ -500,6 +500,52 @@ body.big .flylabel{font-size:26px}
 @keyframes woahin{from{transform:rotate(-3deg) translateX(-110%)}}
 @keyframes woahshake{25%{transform:rotate(-3deg) translate(8px,-4px)}75%{transform:rotate(-3deg) translate(-8px,4px)}}
 
+/* ---------- bigger cards (easier to read) ---------- */
+@media (min-width:900px){
+  .card,.card.sm,.back,.empty{}
+  .card{width:74px;height:106px}
+  .card .rk{font-size:35px;left:6px}.card .sp{top:34px;left:6px;width:17px;height:17px}
+  .card .bg{width:40px;height:40px;right:6px;bottom:6px}
+  .card .bg.letter{font-size:52px;line-height:40px;width:40px}
+  .card .rk2{font-size:19px}.card .jw{top:44px;font-size:15px}
+  .back,.empty{width:74px;height:106px}
+  .card.sm{width:56px;height:80px}
+  .card.sm .rk{font-size:27px;top:1px;left:4px}.card.sm .sp{top:23px;left:4px;width:14px;height:14px}
+  .card.sm .bg{width:28px;height:28px;right:4px;bottom:4px}
+  .card.sm .bg.letter{font-size:36px;line-height:28px;width:28px}
+  .card.sm .jw{top:30px;font-size:11px}
+  .hand{min-height:150px;padding-top:34px}
+  .meld .cards .card{margin-left:-20px}.meld .cards .card:first-child{margin-left:0}
+  .mc{min-width:26px;height:40px;font-size:17px}.mc b{font-size:19px}.mc i{font-size:17px}
+}
+@media (max-width:899px){
+  .card{width:68px;height:97px}
+  .card .rk{font-size:32px}.card .sp{top:30px;width:15px;height:15px}.card .bg{width:36px;height:36px}.card .bg.letter{font-size:46px;line-height:36px;width:36px}
+  .back,.empty{width:68px;height:97px}
+  .card.sm{width:50px;height:72px}.card.sm .rk{font-size:24px}.card.sm .sp{top:20px;width:13px;height:13px}.card.sm .bg{width:25px;height:25px}.card.sm .bg.letter{font-size:32px;line-height:25px;width:25px}
+  .mc{min-width:20px;height:32px;font-size:14px}.mc b{font-size:15px}.mc i{font-size:14px}
+}
+@media (max-width:430px){
+  .card{width:58px;height:84px}
+  .card .rk{font-size:28px}.card .sp{top:26px;width:13px;height:13px}.card .bg{width:30px;height:30px}.card .bg.letter{font-size:40px;line-height:30px;width:30px}
+  .back,.empty{width:58px;height:84px}
+  .card.sm{width:46px;height:66px}.card.sm .rk{font-size:22px}.card.sm .sp{top:18px;width:12px;height:12px}.card.sm .bg{width:23px;height:23px}.card.sm .bg.letter{font-size:30px;line-height:23px;width:23px}
+  .mc{min-width:18px;height:28px;font-size:13px}.mc b{font-size:14px}.mc i{font-size:13px}
+}
+
+/* ---------- shuffle + deal, scores ---------- */
+body.dealing .hand .card{visibility:hidden}
+#dealfx{position:fixed;inset:0;pointer-events:none;z-index:94}
+#dealfx .dealcard{position:fixed;margin:0;box-shadow:0 3px 0 rgba(0,0,0,.5)}
+.scoremodal{max-width:760px}
+.scrollx{overflow-x:auto}
+.scoretbl{font-size:20px}
+.scoretbl th.rc,.scoretbl td.rc{text-align:center;color:var(--muted)}
+.scoretbl td.tot{font-size:26px;color:var(--gold)}
+.scoretbl tr.lead td{background:rgba(255,209,102,.1)}
+.scoretbl tr.me td{outline:none;color:#bfe0ff}
+.bar{flex-wrap:wrap;justify-content:flex-end}
+
 </style>
 </head>
 <body>
@@ -727,7 +773,8 @@ body.big .flylabel{font-size:26px}
     contracts: [{ b: 2, r: 0 }, { b: 0, r: 2 }, { b: 2, r: 1 }, { b: 1, r: 2 }, { b: 3, r: 0 }, { b: 0, r: 3 }],
     maxBuys: 3,            // per player, per round
     buyWindowMs: 3000,
-  lookMs: 10000,     // after a discard, the stock is locked this long so others can press Buy
+  lookMs: 10000,
+    dealMs: 4000,          // time for the shuffle-and-deal animation before the look-at-your-cards countdown     // after a discard, the stock is locked this long so others can press Buy
     maxReshuffles: Infinity,  // the discard pile is reshuffled whenever the stock runs out
     maxTurnsPerPlayer: Infinity  // no stalemates: a round only ends when someone goes out
   };
@@ -756,8 +803,16 @@ body.big .flylabel{font-size:26px}
     return out;
   }
 
+  /* Secure random numbers (the same kind used for encryption) where the browser has them. */
+  function secureRand() {
+    try {
+      const g = (typeof globalThis !== 'undefined') ? globalThis : {};
+      if (g.crypto && g.crypto.getRandomValues) { const a = new Uint32Array(2); g.crypto.getRandomValues(a); return (a[0] * 2097152 + (a[1] >>> 11)) / 9007199254740992; }
+    } catch (e) { /* fall back below */ }
+    return Math.random();
+  }
   function shuffle(arr, rng) {
-    rng = rng || Math.random;
+    rng = rng || secureRand;
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(rng() * (i + 1));
       const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
@@ -813,6 +868,47 @@ body.big .flylabel{font-size:26px}
     if (type === 'book') { const b = checkBook(cards); return b ? { type: 'book', rank: b.rank, cards: cards.slice() } : null; }
     const r = layoutRun(cards);
     return r ? { type: 'run', suit: r.suit, start: r.start, cards: r.cards } : null;
+  }
+
+
+  /* Going down: check the groups, then add any other natural cards from the hand that fit them
+     (3,4,5,6,7 of hearts plus a 8 of hearts in hand). Going down must leave 0 cards (you go out)
+     or at least 2, so there is always a card to discard. Returns {groups:[{type,ids}], extra:n} or {error}. */
+  function planDown(hand, groups) {
+    const used = new Set(), built = [];
+    for (const g of groups) {
+      const cards = [];
+      for (const id of (g.ids || [])) {
+        if (used.has(id)) return { error: 'A card was used twice' };
+        const i = handIndex(hand, id);
+        if (i < 0) return { error: 'Card not in your hand' };
+        used.add(id); cards.push(hand[i]);
+      }
+      const v = validateGroup(g.type, cards);
+      if (!v) return { error: g.type === 'book' ? 'A book needs 3 or more of the same rank' : 'A run needs 4 or more in a row, same suit' };
+      built.push(v);
+    }
+    let rest = hand.filter(function (c) { return !used.has(c.id); });
+    const added = [];
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (let ri = 0; ri < rest.length && !changed; ri++) {
+        const c = rest[ri];
+        if (isJoker(c)) continue;
+        for (let gi = 0; gi < built.length; gi++) {
+          const v = validateGroup(built[gi].type, built[gi].cards.concat([c]));
+          if (v) { built[gi] = v; rest.splice(ri, 1); added.push({ gi: gi, card: c }); changed = true; break; }
+        }
+      }
+    }
+    if (rest.length === 1) {
+      if (!added.length) return { error: 'Going down must leave you with no cards or at least 2, so you can still discard. Use fewer cards, or add one more to a set.' };
+      const last = added.pop();
+      built[last.gi] = validateGroup(built[last.gi].type, built[last.gi].cards.filter(function (c) { return c.id !== last.card.id; }));
+      rest.push(last.card);
+    }
+    return { groups: built.map(function (v) { return { type: v.type, ids: v.cards.map(function (c) { return c.id; }) }; }), extra: added.length };
   }
 
   /* Which ways can `card` be added to `meld`? [] if none. For runs: 'low' and/or 'high'. For books: ['add']. */
@@ -960,6 +1056,7 @@ body.big .flylabel{font-size:26px}
       };
     });
     st.players.forEach(function (p, i) { p.score += hands[i].pts; });
+    st.history = (st.history || []).concat([{ round: st.round, pts: hands.map(function (h) { return { id: h.id, pts: h.pts }; }), outId: outIdx === null ? null : st.players[outIdx].id }]);
     if (outIdx !== null) log(st, st.players[outIdx].name + ' went out!');
     else log(st, 'Nobody could go out. The round ends and everyone scores their hand.');
     st.result = {
@@ -1105,18 +1202,12 @@ body.big .flylabel{font-size:26px}
         const nr = groups.filter(function (g) { return g.type === 'run'; }).length;
         if (nb !== need.b || nr !== need.r || groups.length !== nb + nr)
           return fail('This round you need ' + contractText(need));
+        const pd = planDown(me.hand, groups);
+        if (pd.error) return fail(pd.error);
         const used = new Set(), built = [];
-        for (const g of groups) {
-          const cards = [];
-          for (const id of (g.ids || [])) {
-            if (used.has(id)) return fail('A card was used twice');
-            const i = handIndex(me.hand, id);
-            if (i < 0) return fail('Card not in your hand');
-            used.add(id); cards.push(me.hand[i]);
-          }
-          const v = validateGroup(g.type, cards);
-          if (!v) return fail(g.type === 'book' ? 'A book needs 3 or more of the same rank' : 'A run needs 4 or more in a row, same suit');
-          built.push(v);
+        for (const g of pd.groups) {
+          const cards = g.ids.map(function (id) { used.add(id); return me.hand[handIndex(me.hand, id)]; });
+          built.push(validateGroup(g.type, cards));
         }
         me.hand = me.hand.filter(function (c) { return !used.has(c.id); });
         built.forEach(function (v) {
@@ -1125,7 +1216,7 @@ body.big .flylabel{font-size:26px}
           st.melds.push(m);
         });
         me.down = true;
-        log(st, me.name + ' went down with ' + contractText(need) + '.');
+        log(st, me.name + ' went down with ' + contractText(need) + (pd.extra ? ' and added ' + pd.extra + ' more card' + (pd.extra > 1 ? 's' : '') + ' that fit.' : '.'));
         if (!me.hand.length) finishRound(st, idx);
         return ok();
       }
@@ -1239,7 +1330,7 @@ body.big .flylabel{font-size:26px}
         buyer: st.pending.buyer, queue: st.pending.queue.map(function (q) { return { id: q.id, resp: q.resp }; }),
         card: st.discard[st.discard.length - 1] || null
       } : null,
-      log: st.log.slice(-6), youId: pid, hand: me ? me.hand : [],
+      history: (st.history || []), log: st.log.slice(-6), youId: pid, hand: me ? me.hand : [],
       players: st.players.map(function (p) {
         return {
           id: p.id, name: p.name, bot: p.bot, score: p.score, n: p.hand.length, down: p.down, buys: p.buys,
@@ -1256,6 +1347,7 @@ body.big .flylabel{font-size:26px}
       'There are 6 rounds. To go down, you need: R1 2 books, R2 2 runs, R3 2 books + 1 run, R4 2 runs + 1 book, R5 3 books, R6 3 runs.',
       'Book: 3 or more of the same rank, any suits. Run: 4 or more in a row, same suit. Aces are low or high, never both ways around.',
       'Each turn: draw the top discard or a card from the stock. Then, if you have your contract, lay it all down (only on your own turn). Then discard.',
+      'When you go down, any other cards in your hand that fit your sets are added automatically. Going down must leave you with no cards (you go out) or at least 2, so you always have a card to discard.',
       'Once you are down, you can add cards to anyone\'s laid-down sets on your turns, including the turn you go down.',
       'Buying: right after someone discards, anyone who has not gone down yet can press Buy to grab that card out of turn. The game pauses. Everyone ahead of the buyer (starting with the player whose turn it is) can Approve or Take it instead. A buyer also draws 1 extra card from the stock. You get 3 buys per round, and you cannot buy once you have gone down.',
       'Dead cards: when a card is bought, every card under it in the discard pile is dead. Nobody can take or buy a dead card, so the next player has to draw from the stock. New discards on top are live again.',
@@ -1269,7 +1361,7 @@ body.big .flylabel{font-size:26px}
   return {
     SUITS: SUITS, SUIT_SYMBOL: SUIT_SYMBOL, RULES: RULES,
     isJoker: isJoker, rankLabel: rankLabel, cardLabel: cardLabel, cardPoints: cardPoints, contractText: contractText,
-    makeDeck: makeDeck, shuffle: shuffle,
+    makeDeck: makeDeck, shuffle: shuffle, planDown: planDown,
     checkBook: checkBook, layoutRun: layoutRun, validateGroup: validateGroup,
     isTopDead: isTopDead, layoffOptions: layoffOptions, layoffPlan: layoffPlan, goOutPlan: goOutPlan, canLayoff: canLayoff, meldRankAt: meldRankAt,
     newGame: newGame, nextRound: nextRound, apply: apply, cancelBuy: cancelBuy, view: view, rulesSummary: rulesSummary,
@@ -1445,7 +1537,8 @@ body.big .flylabel{font-size:26px}
     if (!me.down) {
       const groups = findDown(me.hand, contract);
       const usedN = groups ? groups.reduce(function (n, g) { return n + g.ids.length; }, 0) : 0;
-      if (groups && Math.random() < (cfg(level).downProb == null ? 1 : cfg(level).downProb)) return { type: 'down', groups: groups };
+      const pd = groups ? E.planDown(me.hand, groups) : null;
+      if (groups && pd && !pd.error && Math.random() < (cfg(level).downProb == null ? 1 : cfg(level).downProb)) return { type: 'down', groups: groups };
     } else {
       if (me.hand.length === 2 && E.goOutPlan(st.melds, me.hand)) return { type: 'goOut' };
       for (const c of me.hand) {
@@ -1745,7 +1838,7 @@ body.big .flylabel{font-size:26px}
       this.graceRound = g.round;
       if (E.RULES.lookMs > 0) {
         // nobody can do anything for the first 10 seconds of a round (round 1 also has the first-player wheel)
-        this.freezeUntil = Date.now() + (g.round === 1 ? 7500 : 0) + E.RULES.lookMs;
+        this.freezeUntil = Date.now() + (g.round === 1 ? 7500 : 0) + E.RULES.lookMs + (E.RULES.dealMs || 0);
         if (g.buyOpen && lock) lock += this.freezeUntil - Date.now();
       } else this.freezeUntil = 0;
     }
@@ -1920,7 +2013,10 @@ body.big .flylabel{font-size:26px}
     } else lastScores = {};
     V = v; freezeLocal = Date.now() + (v.freezeMs || 0);
     try { chatUpdate(prev, v); } catch (e) { /* chat must never break the game */ }
-    if (v.status === 'playing' && v.round === 1 && (!prev || prev.status !== 'playing') && v.discardCount <= 1 && !v.players.some(function (p) { return p.down; })) setTimeout(function () { showSpinner(v); }, 50);
+    const newRound = v.status === 'playing' && v.discardCount <= 1 && !v.players.some(function (p) { return p.down; }) && (!prev || prev.status !== 'playing' || prev.round !== v.round);
+    const dealMs = E.RULES.dealMs || 0;
+    if (newRound && dealMs > 0) { dealUntil = Date.now() + dealMs; document.body.classList.add('dealing'); setTimeout(function () { showDeal(v); }, 50); }
+    if (newRound && v.round === 1) setTimeout(function () { showSpinner(v); }, 50 + dealMs);
     const mi = meIdx(v), me = v.players[mi];
     if (building && !(v.status === 'playing' && v.turn === mi && v.phase === 'play' && me && !me.down && !v.pending)) { building = false; bgroups = []; }
     clearTimeout(lockTimer);
@@ -2013,7 +2109,9 @@ body.big .flylabel{font-size:26px}
     document.getElementById('app').textContent = '';
     document.getElementById('app').append(h('div', { class: 'home panel center' }, 'Reconnecting to room ' + l.code + '…'));
   }
-  let freezeLocal = 0, freezeTimer = null;
+  let autoLay = false;
+  try { autoLay = localStorage.getItem('rummy.auto') === 'on'; } catch (e) { /* ignore */ }
+  let freezeLocal = 0, freezeTimer = null, dealUntil = 0, autoKey = '';
   function frozenSecs() { return Math.max(0, Math.ceil((freezeLocal - Date.now()) / 1000)); }
   function act(a) {
     if (frozenSecs() > 0) { toast('Take a moment to look at your cards first.'); return; }
@@ -2025,9 +2123,119 @@ body.big .flylabel{font-size:26px}
     freezeTimer = setInterval(function () {
       const s = frozenSecs(), sp = document.querySelector('.banner span');
       if (s <= 0) { clearInterval(freezeTimer); freezeTimer = null; render(); return; }
-      if (sp && V && V.status === 'playing') sp.textContent = 'LOOK AT YOUR CARDS: ' + Math.min(10, s);
+      if (sp && V && V.status === 'playing') sp.textContent = Date.now() < dealUntil ? 'SHUFFLING AND DEALING…' : 'LOOK AT YOUR CARDS: ' + Math.min(10, s);
     }, 250);
   }
+
+  /* =====================================================
+     SHUFFLE + DEAL animation, SCORES board, AUTO-PLAY on sets
+     ===================================================== */
+  function showDeal(v) {
+    const old = document.getElementById('dealfx'); if (old) old.remove();
+    const done = function () {
+      const f = document.getElementById('dealfx'); if (f) f.remove();
+      document.body.classList.remove('dealing');
+      if (document.body.animate) document.querySelectorAll('.hand .card').forEach(function (el, i) {
+        try { el.animate([{ translate: '0 -80px', scale: '0.5', opacity: 0 }, { translate: '0 0', scale: '1', opacity: 1 }], { duration: 320, delay: i * 40, easing: 'cubic-bezier(.2,1.4,.4,1)', fill: 'backwards' }); } catch (e) { /* ignore */ }
+      });
+    };
+    const total = E.RULES.dealMs || 0;
+    setTimeout(done, total);
+    if (!document.body.animate) return;
+    const fx = h('div', { id: 'dealfx' }); document.body.append(fx);
+    const deck = document.querySelector('.pile.stock .back') || document.querySelector('.center-pile');
+    const dr = deck ? deck.getBoundingClientRect() : { left: innerWidth / 2 - 30, top: innerHeight / 2 - 40, width: 60, height: 84 };
+    const cw = dr.width, ch = dr.height, cx = dr.left + dr.width / 2, cy = dr.top + dr.height / 2;
+    const mk = function () { const g = h('div', { class: 'back dealcard' }); g.style.cssText = 'left:' + (cx - cw / 2) + 'px;top:' + (cy - ch / 2) + 'px;width:' + cw + 'px;height:' + ch + 'px'; fx.append(g); return g; };
+    // 1) riffle shuffle
+    const SH = 1500, N = 10, sx = cw * 0.8;
+    for (let i = 0; i < N; i++) {
+      const g = mk(), side = i % 2 ? 1 : -1, r = 10 * side, dx = sx * side, dy = -(i * 1.5);
+      g.style.zIndex = String(i);
+      g.animate([
+        { transform: 'translate(0,0)' },
+        { transform: 'translate(' + dx + 'px,-12px) rotate(' + r + 'deg)', offset: 0.22 },
+        { transform: 'translate(0,' + dy + 'px) rotate(0deg)', offset: 0.42 },
+        { transform: 'translate(' + dx + 'px,-12px) rotate(' + r + 'deg)', offset: 0.62 },
+        { transform: 'translate(0,' + dy + 'px) rotate(0deg)', offset: 0.82 },
+        { transform: 'translate(0,0)' }
+      ], { duration: SH - 100, delay: i * 18, easing: 'ease-in-out', fill: 'both' });
+    }
+    [150, 560, 900, 1250].forEach(function (t) { setTimeout(function () { try { Sound.flip(); } catch (e) { /* ignore */ } }, t); });
+    // 2) deal 11 cards round the table
+    const n = v.players.length, per = 11, order = [];
+    for (let k = 0; k < per; k++) for (let j = 0; j < n; j++) order.push((v.turn + j) % n);
+    const stagger = Math.min(50, Math.max(14, (total - SH - 320 - 500) / order.length));
+    const handEl = document.querySelector('.hand');
+    order.forEach(function (pi, idx) {
+      const p = v.players[pi];
+      let tx = cx, ty = cy;
+      if (p.id === v.youId && handEl) { const r = handEl.getBoundingClientRect(); tx = r.left + r.width / 2; ty = r.top + r.height / 2; }
+      else { const seat = document.querySelector('.seat[data-pid="' + p.id + '"]'); if (seat) { const r = seat.getBoundingClientRect(); tx = r.left + r.width / 2; ty = r.top + r.height / 2; } }
+      const g = mk(); g.style.opacity = '0'; g.style.zIndex = String(50 + idx);
+      const delay = SH + idx * stagger;
+      g.animate([
+        { transform: 'translate(0,0) scale(.8) rotate(0deg)', opacity: 1 },
+        { transform: 'translate(' + (tx - cx) + 'px,' + (ty - cy) + 'px) scale(.5) rotate(' + ((idx * 37) % 40 - 20) + 'deg)', opacity: 1, offset: 0.85 },
+        { transform: 'translate(' + (tx - cx) + 'px,' + (ty - cy) + 'px) scale(.4) rotate(0deg)', opacity: 0 }
+      ], { duration: 340, delay: delay, easing: 'ease-out', fill: 'both' });
+      if (idx % 4 === 0) setTimeout(function () { try { Sound.flip(); } catch (e) { /* ignore */ } }, delay);
+    });
+  }
+
+  function showScores() {
+    const old = document.getElementById('scores-modal'); if (old) old.remove();
+    const el = h('div', { class: 'overlay', id: 'scores-modal', onclick: function (e) { if (e.target === el) el.remove(); } }, h('div', { class: 'modal scoremodal' }));
+    document.body.append(el);
+    refreshScores();
+  }
+  function refreshScores() {
+    const el = document.getElementById('scores-modal'); if (!el || !V) return;
+    const box = el.querySelector('.modal'); box.textContent = '';
+    const hist = V.history || [], rounds = V.rounds || 6;
+    const rows = V.players.map(function (p, i) {
+      const per = []; for (let r = 0; r < rounds; r++) { const hh = hist[r], e = hh && hh.pts.find(function (x) { return x.id === p.id; }); per.push(e ? e.pts : null); }
+      return { p: p, per: per, i: i };
+    }).sort(function (a, b) { return a.p.score - b.p.score || a.i - b.i; });
+    const best = rows.length ? rows[0].p.score : 0;
+    const head = h('tr', null, h('th', null, '#'), h('th', null, 'Player'), h('th', null, 'Total'));
+    for (let r = 0; r < rounds; r++) head.append(h('th', { class: 'rc' }, 'R' + (r + 1)));
+    head.append(h('th', null, 'Hand'), h('th', null, 'Buys left'));
+    const tbl = h('table', { class: 'scoretbl' }, head, rows.map(function (row, k) {
+      const p = row.p, tr = h('tr', { class: (p.id === V.youId ? 'me ' : '') + (p.score === best ? 'lead' : '') },
+        h('td', null, String(k + 1)),
+        h('td', null, p.name + (p.id === V.youId ? ' (you)' : '') + (p.bot ? ' 🤖' : '') + (p.score === best && hist.length ? ' 👑' : '')),
+        h('td', { class: 'tot' }, String(p.score)));
+      row.per.forEach(function (x) { tr.append(h('td', { class: 'rc' }, x === null ? '–' : String(x))); });
+      tr.append(h('td', null, p.n + (p.down ? ' ✓' : '')), h('td', null, String(Math.max(0, V.maxBuys - p.buys))));
+      return tr;
+    }));
+    box.append(h('h2', null, 'Scores'), h('div', { class: 'muted', style: 'font-size:16px;margin-bottom:6px' }, 'Lowest total wins. ✓ means down. Round ' + V.round + ' of ' + rounds + '.'),
+      h('div', { class: 'scrollx' }, tbl), h('div', { class: 'row', style: 'justify-content:center;margin-top:10px' }, h('button', { onclick: function () { el.remove(); } }, 'Close')));
+  }
+
+  /* Auto-play: on your turn, once you are down, cards that fit a laid-down set are played for you (never below 2 cards). */
+  let autoTimer = null;
+  function scheduleAuto() {
+    clearTimeout(autoTimer);
+    if (!autoLay || !V || V.status !== 'playing' || V.pending) return;
+    const mi = meIdx(V), me = V.players[mi];
+    if (!me || !me.down || V.turn !== mi || V.phase !== 'play' || V.hand.length <= 2 || frozenSecs() > 0 || building) return;
+    let pick = null;
+    for (let i = 0; i < V.hand.length && !pick; i++) {
+      const c = V.hand[i]; if (E.isJoker(c)) continue;
+      for (let j = 0; j < V.melds.length; j++) {
+        const opts = E.layoffOptions(V.melds[j], c);
+        if (opts.length) { pick = { type: 'layoff', id: c.id, meldId: V.melds[j].id, end: opts.indexOf('high') >= 0 ? 'high' : (opts.indexOf('low') >= 0 ? 'low' : undefined) }; break; }
+      }
+    }
+    if (!pick) return;
+    const key = V.round + ':' + V.turn + ':' + V.hand.map(function (c) { return c.id; }).join(',') + ':' + V.melds.length;
+    if (key === autoKey) return;           // already tried this exact position
+    autoKey = key;
+    autoTimer = setTimeout(function () { if (autoLay) { Sound.layoff && Sound.layoff(); act(pick); } }, 450);
+  }
+
   function name() { return (document.getElementById('nm') && document.getElementById('nm').value.trim()) || store('local', 'rummy.name') || 'Player'; }
 
   /* =====================================================
@@ -2094,10 +2302,19 @@ body.big .flylabel{font-size:26px}
 
   /* If a seat (for example yours, once your laid-down sets show on it) sticks out over the status banner, push the banner down so its text stays readable. */
   function fixOverlap() {
+    const app = document.getElementById('app'), z = parseFloat(app && app.style.zoom) || 1;
+    const ring = document.querySelector('.ring'), contract = document.querySelector('.contract');
+    if (ring && contract) {            // keep the top player's name and card count clear of the round banner
+      ring.style.marginTop = '';
+      const cb = contract.getBoundingClientRect();
+      let top = Infinity;
+      document.querySelectorAll('.seat').forEach(function (st) { top = Math.min(top, st.getBoundingClientRect().top); });
+      const need = cb.bottom + 22 - top;     // 22px leaves room for the little turn arrow
+      if (need > 0) ring.style.marginTop = Math.ceil(need / z) + 'px';
+    }
     const banner = document.querySelector('.gamewrap .banner, .banner');
     if (!banner) return;
     banner.style.marginTop = '';
-    const app = document.getElementById('app'), z = parseFloat(app && app.style.zoom) || 1;
     const br = banner.getBoundingClientRect();
     let over = 0;
     document.querySelectorAll('.seat').forEach(function (st) {
@@ -2115,9 +2332,11 @@ body.big .flylabel{font-size:26px}
     if (!V) app.append(homeScreen());
     else if (V.status === 'lobby') app.append(lobbyScreen());
     else app.append(gameScreen(ev));
+    if (!V || V.status !== 'playing') { document.body.classList.remove('dealing'); const fxo = document.getElementById('dealfx'); if (fxo) fxo.remove(); }
     layoutHand();
     fixOverlap();
     applyBubbles();
+    try { refreshScores(); scheduleAuto(); } catch (e) { /* extras must never break the game */ }
     freezeTick();
     if (bg) bg.setMood(V && V.status === 'playing' ? (V.turn === meIdx(V) ? 0.95 : 0.1) : 0.5);
     if (modal === 'rules') { const old = document.getElementById('rules-modal'); if (old) old.remove(); document.body.append(rulesModal()); }
@@ -2309,6 +2528,7 @@ body.big .flylabel{font-size:26px}
       V.hostId === V.youId && V.players.some(function (p) { return p.bot; }) ? h('button', { class: (V.paused ? 'orange' : 'ghost') + ' small', onclick: function () { net.send({ t: 'pause', on: !V.paused }); } }, V.paused ? 'Resume' : 'Pause') : null,
       bigBtn(),
       soundBtn(),
+      h('button', { class: 'ghost small', onclick: function () { showScores(); } }, 'Scores'),
       h('button', { class: 'ghost small', onclick: function () { modal = 'rules'; render(); } }, 'Rules'),
       h('button', { class: 'ghost small', onclick: function () { askConfirm(V && V.hostId === V.youId ? 'Leave this game? It ends for everyone.' : 'Leave this game?', 'Leave', leaveRoom); } }, 'Leave'));
 
@@ -2344,7 +2564,8 @@ body.big .flylabel{font-size:26px}
       h('div', { class: 'felt' }), seats, center);
 
     let msg;
-    if (V.status === 'playing' && frozenSecs() > 0) msg = 'LOOK AT YOUR CARDS: ' + Math.min(10, frozenSecs());
+    if (V.status === 'playing' && Date.now() < dealUntil) msg = 'SHUFFLING AND DEALING…';
+    else if (V.status === 'playing' && frozenSecs() > 0) msg = 'LOOK AT YOUR CARDS: ' + Math.min(10, frozenSecs());
     else if (V.status !== 'playing') msg = 'Round over';
     else if (V.paused) msg = 'PAUSED: the computer players are waiting' + (V.hostId === V.youId ? '. Press Resume when ready.' : '.');
     else if (V.pending) msg = 'PAUSED: ' + (V.players.find(function (p) { return p.id === V.pending.buyer; }) || {}).name + ' wants to buy';
@@ -2376,7 +2597,8 @@ body.big .flylabel{font-size:26px}
       const clearBtn = h('button', { class: 'ghost', disabled: true, onclick: function () { selected = new Set(); document.querySelectorAll('.hand .card.sel').forEach(function (e) { e.classList.remove('sel'); }); updateSelUI(); } }, 'Clear');
       const grpBtn = h('button', { class: 'yellow', disabled: true, onclick: function () { toggleGroup(); } }, 'Group');
       const sortBtn = h('button', { class: 'ghost', onclick: function () { sortMode = sortMode === 'suit' ? 'rank' : 'suit'; Sound.flip(); render(); } }, 'Sort: ' + (sortMode === 'custom' ? 'mine' : sortMode));
-      controls = h('div', { class: 'actions' }, goBtn, endBtn, grpBtn, clearBtn, sortBtn);
+      const autoBtn = me && me.down ? h('button', { class: autoLay ? 'green' : 'ghost', title: 'On your turn, automatically play any card that fits on a laid-down set (keeps your last 2 cards)', onclick: function () { autoLay = !autoLay; store('local', 'rummy.auto', autoLay ? 'on' : 'off'); toast(autoLay ? 'Auto-play on: cards that fit sets are played for you on your turn.' : 'Auto-play off.'); render(); } }, 'Auto-play sets: ' + (autoLay ? 'ON' : 'OFF')) : null;
+      controls = h('div', { class: 'actions' }, goBtn, endBtn, grpBtn, clearBtn, sortBtn, autoBtn);
       hint = h('div', { class: 'hint' });
       layBar = h('div', { class: 'laybar' });
       gameUI = { canPlay: canPlay, down: !!(me && me.down), clear: clearBtn, grp: grpBtn, hint: hint, lay: layBar };

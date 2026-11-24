@@ -612,7 +612,7 @@ body.dealing .hand .card{visibility:hidden}
     function frame(ts) {
       requestAnimationFrame(frame);
       if (document.hidden || ts - last < 40) return;       // about 25 frames a second
-      last = ts; t += 0.04; draw();
+      last = ts; t += 0.01; draw();     // slow drift
     }
     size(); draw();
     window.addEventListener('resize', function () { size(); draw(); });

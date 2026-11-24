@@ -479,6 +479,27 @@ body.big .flylabel{font-size:26px}
 
 .laybar .goout{font-size:22px;padding:12px 22px;animation:buypulse .9s ease-in-out infinite}
 
+.chatdock{position:fixed;right:10px;bottom:10px;z-index:80;width:min(270px,88vw);font-size:15px}
+.chathead{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border-radius:10px 10px 0 0;background:#1b2238;color:#fff;border:3px solid #3a4468;cursor:pointer;font:inherit}
+.chatdock:not(.open) .chathead{border-radius:10px}
+.chatbadge{background:#e0556b;color:#fff;border-radius:10px;padding:0 8px;min-width:20px;text-align:center}
+.chatbody{display:none;background:#10162a;border:3px solid #3a4468;border-top:0;padding:8px;flex-direction:column;gap:6px}
+.chatdock.open .chatbody{display:flex}
+.chatlog{height:min(170px,28vh);overflow-y:auto;color:#dfe6ff;line-height:1.25;word-break:break-word}
+.cmsg{margin:2px 0}.cmsg b{color:#f3c34d}.cmsg.mine b{color:#7fd0ff}
+.chatquick{display:flex;flex-wrap:wrap;gap:4px}
+.chatrow{display:flex;gap:6px}.chatrow input{flex:1;min-width:0;font-size:16px}
+.cbubble{position:absolute;left:50%;top:-30px;transform:translateX(-50%);background:#fff;color:#1a1405;border:3px solid #f3c34d;border-radius:12px;padding:3px 10px;font-size:16px;white-space:nowrap;z-index:40;pointer-events:none;animation:cpop .25s ease-out}
+@keyframes cpop{from{transform:translateX(-50%) scale(.6);opacity:0}}
+@media (max-width:899px){.chatdock{bottom:6px;right:6px}.chatlog{height:min(150px,24vh)}}
+
+.woah{position:fixed;left:-5%;right:-5%;top:34%;z-index:85;pointer-events:none;background:#e0394f;color:#fff;text-align:center;padding:14px 10px;border-top:5px solid #fff;border-bottom:5px solid #fff;transform:rotate(-3deg);box-shadow:0 10px 0 rgba(0,0,0,.35);animation:woahin .35s cubic-bezier(.2,1.4,.4,1),woahshake .12s linear 3 .35s}
+.woah.out{opacity:0;transform:rotate(-3deg) scale(1.1);transition:all .4s}
+.wbig{font-size:clamp(30px,8vw,72px);line-height:1.05;text-shadow:0 4px 0 rgba(0,0,0,.35)}
+.wsub{font-size:clamp(16px,3.6vw,28px);margin-top:4px}
+@keyframes woahin{from{transform:rotate(-3deg) translateX(-110%)}}
+@keyframes woahshake{25%{transform:rotate(-3deg) translate(8px,-4px)}75%{transform:rotate(-3deg) translate(-8px,4px)}}
+
 </style>
 </head>
 <body>
@@ -600,6 +621,8 @@ body.big .flylabel{font-size:26px}
   Sound.click = function () { tone(520, 0.05, 'square', 0.05, 700); tone(780, 0.06, 'square', 0.04, 0, 0.04); };
   Sound.hover = function () { tone(1200, 0.025, 'triangle', 0.025, 1400); };
   Sound.key = function () { tone(220 + Math.random() * 60, 0.04, 'triangle', 0.06, 150); };
+  Sound.chat = function () { tone(660, 0.06, 'sine', 0.06, 0); tone(880, 0.09, 'sine', 0.05, 0, 0.07); };
+  Sound.alarm = function () { [0, 0.16, 0.32].forEach(function (d) { tone(760, 0.12, 'square', 0.07, 520, d); tone(520, 0.12, 'square', 0.05, 380, d + 0.07); }); };
   Sound.error = function () { tone(150, 0.18, 'sawtooth', 0.07, 90); };
   FX.Sound = Sound;
 
@@ -1472,7 +1495,7 @@ body.big .flylabel{font-size:26px}
   const E = window.RummyEngine, Bots = window.RummyBots;
   const FX = window.FX || {};
   const noop = function () {};
-  const Sound = FX.Sound || { flip: noop, select: noop, deselect: noop, discard: noop, meld: noop, layoff: noop, turn: noop, win: noop, lose: noop, error: noop, unlock: noop, click: noop, hover: noop, key: noop, toggle: function () { return false; }, on: false };
+  const Sound = FX.Sound || { flip: noop, select: noop, deselect: noop, discard: noop, meld: noop, layoff: noop, turn: noop, win: noop, lose: noop, error: noop, unlock: noop, click: noop, hover: noop, key: noop, chat: noop, alarm: noop, toggle: function () { return false; }, on: false };
   const APP_NAME = 'Okie Rummy';
   const PEER_PREFIX = 'okie-rummy-';
   const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -1636,6 +1659,18 @@ body.big .flylabel{font-size:26px}
         if (!isHost || ['easy', 'normal', 'hard'].indexOf(msg.level) < 0) return;
         this.level = msg.level;
         break;
+      case 'chat': {
+        const txt = String(msg.text || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+        if (!txt) return;
+        const nowT = Date.now(); this.chatLast = this.chatLast || {};
+        if (nowT - (this.chatLast[pid] || 0) < 500) return;
+        this.chatLast[pid] = nowT;
+        const who = this.seats.find(function (x) { return x.id === pid; });
+        this.chat = this.chat || []; this.chatN = (this.chatN || 0) + 1;
+        this.chat.push({ n: this.chatN, pid: pid, name: who ? who.name : 'Player', text: txt, q: !!msg.q });
+        if (this.chat.length > 50) this.chat = this.chat.slice(-50);
+        break;
+      }
       case 'speed':
         if (!isHost || [1, 2, 3, 5].indexOf(msg.v) < 0) return;
         this.speed = msg.v;
@@ -1686,7 +1721,7 @@ body.big .flylabel{font-size:26px}
         players: this.seats.map(function (s) { return { id: s.id, name: s.name, bot: s.bot, connected: s.connected }; })
       };
     }
-    v.code = this.code; v.hostId = this.me; v.online = this.online; v.level = this.level || 'normal'; v.paused = !!this.paused; v.speed = this.speed || 1;
+    v.code = this.code; v.hostId = this.me; v.online = this.online; v.level = this.level || 'normal'; v.paused = !!this.paused; v.speed = this.speed || 1; v.chat = this.chat || [];
     return v;
   };
   /* After each discard, the stock is locked for a moment so other players can press Buy. */
@@ -1881,6 +1916,7 @@ body.big .flylabel{font-size:26px}
       lastScores = {}; prev.players.forEach(function (p) { lastScores[p.id] = p.score; });
     } else lastScores = {};
     V = v;
+    try { chatUpdate(prev, v); } catch (e) { /* chat must never break the game */ }
     if (v.status === 'playing' && v.round === 1 && (!prev || prev.status !== 'playing') && v.discardCount <= 1 && !v.players.some(function (p) { return p.down; })) setTimeout(function () { showSpinner(v); }, 50);
     const mi = meIdx(v), me = v.players[mi];
     if (building && !(v.status === 'playing' && v.turn === mi && v.phase === 'play' && me && !me.down && !v.pending)) { building = false; bgroups = []; }
@@ -1899,8 +1935,68 @@ body.big .flylabel{font-size:26px}
           h('button', { class: 'ghost', onclick: function () { el.remove(); } }, 'Stay'))));
     document.body.append(el);
   }
+  /* =====================================================
+     CHAT: a dock in the corner (side panel on laptops, drawer on phones) + quick reactions that pop over a player's seat
+     ===================================================== */
+  const QUICK = ['Nice!', 'Ugh', 'Hurry up', 'Good game', 'Wow', 'Thanks'];
+  let chatOpen = null, chatSeenN = 0, chatLastN = null, bubbles = {};
+  function chatReset() { const d = document.getElementById('chatdock'); if (d) d.remove(); chatOpen = null; chatSeenN = 0; chatLastN = null; bubbles = {}; }
+  function applyBubbles() {
+    const now = Date.now();
+    Object.keys(bubbles).forEach(function (pid) {
+      const b = bubbles[pid];
+      if (b.until < now) { delete bubbles[pid]; return; }
+      const seat = document.querySelector('.seat[data-pid="' + pid + '"]');
+      if (seat && !seat.querySelector('.cbubble')) seat.append(h('div', { class: 'cbubble' }, b.text));
+    });
+  }
+  function chatSend(text, quick) { if (net && text) net.send({ t: 'chat', text: text, q: !!quick }); }
+  function chatUpdate(prev, v) {
+    let dock = document.getElementById('chatdock');
+    if (!v || !v.online || !v.chat) { if (dock) dock.remove(); return; }
+    const msgs = v.chat, latest = msgs.length ? msgs[msgs.length - 1].n : 0;
+    if (chatOpen === null) chatOpen = window.innerWidth >= 900;
+    if (chatLastN === null) { chatLastN = latest; chatSeenN = latest; }   // history on join/reconnect is not "new"
+    const fresh = msgs.filter(function (m) { return m.n > chatLastN; });
+    chatLastN = Math.max(chatLastN, latest);
+    fresh.forEach(function (m) {
+      bubbles[m.pid] = { text: m.text.length > 34 ? m.text.slice(0, 33) + '…' : m.text, until: Date.now() + 4500 };
+      if (m.pid !== v.youId) Sound.chat();
+      setTimeout(function () { document.querySelectorAll('.seat[data-pid="' + m.pid + '"] .cbubble').forEach(function (e) { if (bubbles[m.pid] === undefined || bubbles[m.pid].until <= Date.now()) e.remove(); }); }, 4600);
+    });
+    if (chatOpen) chatSeenN = latest;
+    const unread = msgs.filter(function (m) { return m.n > chatSeenN && m.pid !== v.youId; }).length;
+    if (!dock) {
+      const log = h('div', { class: 'chatlog', id: 'chatlog' });
+      const inp = h('input', { id: 'chatin', maxlength: '120', placeholder: 'Say something', autocomplete: 'off' });
+      const send = function () { const t = inp.value.trim(); if (t) { chatSend(t, false); inp.value = ''; } };
+      inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); send(); } e.stopPropagation(); });
+      const quick = h('div', { class: 'chatquick' }, QUICK.map(function (q) { return h('button', { class: 'ghost small', onclick: function () { chatSend(q, true); } }, q); }));
+      dock = h('div', { id: 'chatdock', class: 'chatdock' },
+        h('button', { class: 'chathead', id: 'chathead', onclick: function () { chatOpen = !chatOpen; chatUpdate(V, V); const l = document.getElementById('chatlog'); if (l) l.scrollTop = l.scrollHeight; } }),
+        h('div', { class: 'chatbody' }, log, quick, h('div', { class: 'chatrow' }, inp, h('button', { class: 'orange small', onclick: send }, 'Send'))));
+      document.body.append(dock);
+    }
+    dock.classList.toggle('open', !!chatOpen);
+    const head = document.getElementById('chathead');
+    head.textContent = '';
+    head.append(h('span', null, 'Chat'));
+    if (unread > 0 && !chatOpen) head.append(h('b', { class: 'chatbadge' }, String(unread)));
+    head.append(h('span', { class: 'chatcar' }, chatOpen ? '▾' : '▴'));
+    const log = document.getElementById('chatlog');
+    const stick = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+    log.textContent = '';
+    msgs.forEach(function (m) {
+      log.append(h('div', { class: 'cmsg' + (m.pid === v.youId ? ' mine' : '') }, h('b', null, m.pid === v.youId ? 'You' : m.name), ' ' + m.text));
+    });
+    if (!msgs.length) log.append(h('div', { class: 'cmsg muted' }, 'No messages yet. Say hi, or tap a quick reaction.'));
+    if (stick || fresh.length) log.scrollTop = log.scrollHeight;
+    applyBubbles();
+  }
+
   function goHome() {
     if (net) net.leave();
+    chatReset();
     net = null; V = null; selected = new Set(); connBanner = ''; gameUI = null; building = false; bgroups = [];
     render();
   }
@@ -2004,6 +2100,7 @@ body.big .flylabel{font-size:26px}
     else app.append(gameScreen(ev));
     layoutHand();
     fixOverlap();
+    applyBubbles();
     if (bg) bg.setMood(V && V.status === 'playing' ? (V.turn === meIdx(V) ? 0.95 : 0.1) : 0.5);
     if (modal === 'rules') { const old = document.getElementById('rules-modal'); if (old) old.remove(); document.body.append(rulesModal()); }
     else { const m = document.getElementById('rules-modal'); if (m) m.remove(); }
@@ -2745,6 +2842,21 @@ body.big .flylabel{font-size:26px}
     setTimeout(function () { el.remove(); }, dur + 2200);
   }
 
+  /* Big "WOAH WOAH WOAH" slam across the table when someone wants to buy. */
+  function showWoah(v) {
+    const old = document.getElementById('woah'); if (old) old.remove();
+    const b = v.players.find(function (p) { return p.id === v.pending.buyer; });
+    const mine = b && b.id === v.youId;
+    const cardTxt = v.pending.card ? ' ' + cardName(v.pending.card).replace(/^a /, 'a ') : ' the card';
+    const el = h('div', { class: 'woah', id: 'woah' },
+      h('div', { class: 'wbig' }, 'WOAH WOAH WOAH!'),
+      h('div', { class: 'wsub' }, (mine ? 'You want' : (b ? b.name : 'Someone') + ' wants') + ' to buy' + cardTxt));
+    document.body.append(el);
+    Sound.alarm();
+    setTimeout(function () { el.classList.add('out'); }, 1900);
+    setTimeout(function () { el.remove(); }, 2300);
+  }
+
   function celebrate(ev, prev, before) {
     flights(before, ev, prev);
     const app = document.getElementById('app');
@@ -2752,7 +2864,7 @@ body.big .flylabel{font-size:26px}
     if (ev.drewStock || ev.tookDiscard) Sound.flip();
     if (ev.discarded) setTimeout(Sound.discard, 300);
     if (ev.pendingStart) {
-      Sound.turn();
+      Sound.turn(); showWoah(V);
       const bp = V.pending && chipRect(V.pending.buyer);
       if (bp && FX.popup) FX.popup('BUY?', 'red', bp);
       if (FX.shake) FX.shake(app, 5);

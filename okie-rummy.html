@@ -1520,7 +1520,7 @@ body.dealing .hand .card{visibility:hidden}
   const LEVELS = {
     easy:   { takeMin: 3,   blunder: 0.6, buyMin: 1e9, buyProb: 0, downProb: 0.5 },
     normal: { takeMin: 1,   blunder: 0.15, buyMin: 3,  buyProb: 0.35, downProb: 0.85 },
-    hard:   { takeMin: 0.5, blunder: 0,   buyMin: 2,   buyProb: 0.9, downProb: 1 }
+    hard:   { keepFits: true, takeMin: 0.5, blunder: 0,   buyMin: 2,   buyProb: 0.9, downProb: 1 }
   };
   function cfg(level) { return LEVELS[level] || LEVELS.normal; }
 
@@ -1557,7 +1557,7 @@ body.dealing .hand .card{visibility:hidden}
     return v;
   }
 
-  function pickDiscard(me, contract, melds) {
+  function pickDiscard(me, contract, melds, keepFits) {
     const hand = me.hand;
     let pool = hand.filter(function (c) { return !E.isJoker(c); });
     if (!pool.length) pool = hand;
@@ -1568,6 +1568,8 @@ body.dealing .hand .card{visibility:hidden}
       else {
         const rest = hand.filter(function (x) { return x !== c; });
         score = -potential(rest, contract) * 100 - E.cardPoints(c);
+        // hard bots hold cards that other players' sets could take, to play them once they are down
+        if (keepFits) score += fitValue(c, melds || []) * 100000;
       }
       if (score < bestScore) { bestScore = score; best = c; }
     });
@@ -1597,7 +1599,7 @@ body.dealing .hand .card{visibility:hidden}
       }
     }
     if (me.hand.length === 1) return { type: 'end' };
-    let d = pickDiscard(me, contract, st.melds);
+    let d = pickDiscard(me, contract, st.melds, !!cfg(level).keepFits);
     if (Math.random() < cfg(level).blunder) {
       const pool = me.hand.filter(function (c) { return !E.isJoker(c); });
       if (pool.length) d = pool[Math.floor(Math.random() * pool.length)];

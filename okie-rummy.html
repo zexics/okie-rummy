@@ -578,6 +578,10 @@ body.dealing .hand .card{visibility:hidden}
 /* home screen: centred vertically on phones */
 @media (max-width:899px){ #app:has(> .home){justify-content:center} #app > .home{margin-top:0} }
 
+/* tall phones in the Home Screen app: use the full screen height and keep clear of the home bar */
+@supports (height:100lvh){ @media (max-width:899px){ html,body{height:100lvh} } }
+@media (display-mode:standalone) and (max-width:899px){ #app{padding-bottom:calc(30px + env(safe-area-inset-bottom))} }
+
 </style>
 </head>
 <body>
@@ -1683,6 +1687,26 @@ body.dealing .hand .card{visibility:hidden}
     Sound.error();
     clearTimeout(toast._t); toast._t = setTimeout(function () { t.classList.remove('show'); }, 3200);
   }
+  /* Relay (TURN) servers, so players on phone data or strict routers can still connect. Short-lived logins come from a small private service. */
+  const RELAY_URL = 'https://divine-hall-bc3d.joshuaallenng.workers.dev/';
+  const ICE_FALLBACK = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' }];
+  let iceCache = null;
+  function getIce(cb) {
+    if (iceCache && iceCache.until > Date.now()) { cb({ iceServers: iceCache.servers }); return; }
+    let done = false;
+    const finish = function (servers) { if (done) return; done = true; cb({ iceServers: servers }); };
+    const timer = setTimeout(function () { finish(ICE_FALLBACK); }, 4000);
+    try {
+      fetch(RELAY_URL).then(function (r) { return r.json(); }).then(function (j) {
+        clearTimeout(timer);
+        if (j && j.iceServers && j.iceServers.length) {
+          const servers = j.iceServers.concat([{ urls: 'stun:stun.l.google.com:19302' }]);
+          iceCache = { servers: servers, until: Date.now() + 6 * 3600 * 1000 };
+          finish(servers);
+        } else finish(ICE_FALLBACK);
+      }).catch(function () { clearTimeout(timer); finish(ICE_FALLBACK); });
+    } catch (e) { clearTimeout(timer); finish(ICE_FALLBACK); }
+  }
   function PeerCtor() { return window.Peer || (window.peerjs && window.peerjs.Peer); }
 
   /* ---------- app state ---------- */
@@ -1722,10 +1746,14 @@ body.dealing .hand .card{visibility:hidden}
     if (online) this.openPeer(0);
   }
   Host.prototype.openPeer = function (tries) {
+    const self = this;
+    getIce(function (cfg) { if (!self.dead) self.openPeer2(tries, cfg); });
+  };
+  Host.prototype.openPeer2 = function (tries, cfg) {
     const self = this, P = PeerCtor();
     if (!P) { toast('Online play is not available in this browser.'); return; }
     const code = rand(4);
-    const peer = new P(PEER_PREFIX + code);
+    const peer = new P(PEER_PREFIX + code, { config: cfg });
     let opened = false;
     peer.on('open', function () { opened = true; self.code = code; self.peer = peer; self.changed(); });
     peer.on('error', function (e) {
@@ -1975,10 +2003,14 @@ body.dealing .hand .card{visibility:hidden}
     this.connect();
   }
   Client.prototype.connect = function () {
+    const self = this;
+    getIce(function (cfg) { if (!self.dead) self.connect2(cfg); });
+  };
+  Client.prototype.connect2 = function (cfg) {
     const self = this, P = PeerCtor();
     if (!P) { toast('Online play is not available in this browser.'); return; }
     if (this.peer) try { this.peer.destroy(); } catch (x) {}
-    const peer = this.peer = new P();
+    const peer = this.peer = new P(undefined, { config: cfg });
     let settled = false;
     const fail = function (msg) {
       if (settled || self.dead) return; settled = true;
@@ -3416,4 +3448,4 @@ body.dealing .hand .card{visibility:hidden}
 </script>
 </body>
 </html>
-<!-- build 1795756282 -->
+<!-- build 1795759828 -->

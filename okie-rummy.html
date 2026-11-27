@@ -828,7 +828,7 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
     bookMin: 3,
     runMin: 4,
     // books / runs required to go down, one entry per round
-    contracts: [{ b: 2, r: 0 }, { b: 0, r: 2 }, { b: 2, r: 1 }, { b: 2, r: 1 }, { b: 3, r: 0 }, { b: 0, r: 3 }],
+    contracts: [{ b: 2, r: 0 }, { b: 0, r: 2 }, { b: 2, r: 1 }, { b: 1, r: 2 }, { b: 3, r: 0 }, { b: 0, r: 3 }],
     maxBuys: 3,            // per player, per round
     buyWindowMs: 3000,
   lookMs: 10000,
@@ -846,10 +846,8 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
     return c.r >= 8 ? 10 : 5;
   }
   function contractText(c) {
-    const p = [];
-    if (c.b) p.push(c.b + (c.b === 1 ? ' book' : ' books'));
-    if (c.r) p.push(c.r + (c.r === 1 ? ' run' : ' runs'));
-    return p.join(' + ');
+    const bk = c.b ? c.b + (c.b === 1 ? ' book' : ' books') : '', rn = c.r ? c.r + (c.r === 1 ? ' run' : ' runs') : '';
+    return (c.r > c.b ? [rn, bk] : [bk, rn]).filter(Boolean).join(' + ');   // the bigger group is listed first
   }
 
   function makeDeck(decks) {
@@ -1463,7 +1461,7 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
     return [
       '3 players use 2 decks, 4 to 5 players use 3 decks, 6 to 8 players use 4 decks. You need at least 3 players. Each deck has 2 jokers. Jokers are wild.',
       'Everyone gets 11 cards each round. One card starts the discard pile. Play goes clockwise.',
-      'There are 6 rounds. To go down, you need: R1 2 books, R2 2 runs, R3 2 books + 1 run, R4 2 books + 1 run, R5 3 books, R6 3 runs.',
+      'There are 6 rounds. To go down, you need: R1 2 books, R2 2 runs, R3 2 books + 1 run, R4 2 runs + 1 book, R5 3 books, R6 3 runs.',
       'Book: 3 or more of the same rank, any suits. Run: 4 or more in a row, same suit. Aces are low or high, never both ways around.',
       'Each turn: draw the top discard or a card from the stock. Then, if you have your contract, lay it all down (only on your own turn). Then discard.',
       'When you go down, any other cards in your hand that fit your sets are added automatically. Going down must leave you with no cards (you go out) or at least 2, so you always have a card to discard.',
@@ -3606,4 +3604,4 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
 </script>
 </body>
 </html>
-<!-- build 1795766413 -->
+<!-- build 1795766715 -->

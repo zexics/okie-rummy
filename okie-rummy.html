@@ -2836,7 +2836,7 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
       if (gi >= 0) { const gc = GCOLS[(groups[gi].col || 0) % GCOLS.length]; cel.style.setProperty('--gc', gc[0]); cel.style.setProperty('--gcb', gc[1]); cel.style.setProperty('--gcl', gc[2]); }
       return cel;
     }));
-    handEl.style.setProperty('--hz', String(HAND_ZOOM[Math.min(V.players.length, 8)] || 1));
+    { const hz0 = HAND_ZOOM[Math.min(V.players.length, 8)] || 1; handEl.style.setProperty('--hz', String(window.innerWidth < 900 ? Math.min(hz0, 1) : hz0)); }
 
     let controls, hint = null, layBar = null;
     if (building && canPlay) controls = builderPanel();
@@ -3604,4 +3604,4 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
 </script>
 </body>
 </html>
-<!-- build 1795766715 -->
+<!-- build 1795767771 -->

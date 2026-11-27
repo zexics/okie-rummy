@@ -131,8 +131,8 @@ h1,h2,h3{margin:0;font-weight:700}
 .hand .card{cursor:pointer}
 .hand .card .face{animation:bob 3.6s ease-in-out infinite;animation-delay:var(--d,0s)}
 @keyframes bob{0%,100%{translate:0 0}50%{translate:0 -3px}}
-.hand .card:hover{--z:30 !important}
-.hand .card:hover .face{box-shadow:0 8px 0 rgba(0,0,0,.4),0 0 0 2px var(--gold)}
+@media (hover:hover){.hand .card:hover{--z:30 !important}
+.hand .card:hover .face{box-shadow:0 8px 0 rgba(0,0,0,.4),0 0 0 2px var(--gold)}}
 .card.sel{--ty:-26px !important;--z:25 !important}
 .card.sel .face{box-shadow:0 10px 0 rgba(0,0,0,.4),0 0 0 3px var(--gold),0 0 22px rgba(255,209,102,.7);animation:jig .35s ease-in-out infinite}
 @keyframes jig{0%,100%{rotate:-1.5deg}50%{rotate:1.5deg}}
@@ -333,9 +333,9 @@ td b{color:var(--gold);font-size:26px;font-weight:400}
   .contract{font-size:16px;padding:3px 8px;gap:6px}
   .center-pile{gap:6px}
   .center-pile .piles{gap:12px}
-  .center-pile .card,.center-pile .back,.center-pile .empty{width:46px;height:66px}
-  .center-pile .card .rk{font-size:22px}.center-pile .card .sp{top:20px;width:10px;height:10px}.center-pile .card .bg{width:22px;height:22px}.center-pile .card .bg.letter{font-size:28px;line-height:22px;width:22px}
-  .center-pile .card .jw{top:28px;font-size:11px}
+  .center-pile .card,.center-pile .back,.center-pile .empty{width:51px;height:73px}
+  .center-pile .card .rk{font-size:24px}.center-pile .card .sp{top:22px;width:11px;height:11px}.center-pile .card .bg{width:24px;height:24px}.center-pile .card .bg.letter{font-size:31px;line-height:24px;width:24px}
+  .center-pile .card .jw{top:31px;font-size:12px}
   .buybtn{font-size:16px;padding:4px 9px}
   .banner{font-size:20px;padding:5px 8px}
   .hand{padding-top:30px;min-height:130px}
@@ -351,13 +351,16 @@ td b{color:var(--gold);font-size:26px;font-weight:400}
 .contract b{font-size:30px;text-transform:uppercase;text-shadow:0 3px 0 #000a}
 .contract .dn{font-size:16px}
 .hand .card{touch-action:none}
-.hand .card.dragging{z-index:90 !important;transition:none;cursor:grabbing;filter:drop-shadow(0 10px 8px rgba(0,0,0,.5))}
+.hand .card.dragging{opacity:.22;transition:none}
+.dragghost{position:fixed;z-index:200;pointer-events:none;will-change:transform;filter:drop-shadow(0 12px 10px rgba(0,0,0,.55))}
+.dragghost .card{animation:none}.dragghost .card .face{animation:none}
+.pile.disc.dropok .stackwrap{outline:4px dashed var(--gold);outline-offset:6px;border-radius:10px;transform:scale(1.08)}
 @media (max-width:430px){.contract{font-size:17px;padding:4px 8px}.contract b{font-size:23px}}
 
 button.yellow{background:#e6b422;color:#2b1f00;text-shadow:none;box-shadow:0 5px 0 #8a6a0a,0 7px 8px rgba(0,0,0,.35)}
-.hand .card.gm .face{background:#fff0a8;border-color:#e6b422;box-shadow:0 4px 0 rgba(0,0,0,.45),0 0 0 3px #ffd166,0 0 14px rgba(255,209,102,.6)}
+.hand .card.gm .face{background:var(--gcb,#fff0a8);border-color:var(--gc,#e6b422);box-shadow:0 4px 0 rgba(0,0,0,.45),0 0 0 3px var(--gcl,#ffd166),0 0 14px var(--gcl,#ffd166)}
 .hand .card.gm.gfirst .face{border-top-left-radius:12px;border-bottom-left-radius:12px}
-.hand .card.gm::after{content:'';position:absolute;left:-3px;right:-3px;bottom:-9px;height:5px;background:#ffd166;border-radius:3px}
+.hand .card.gm::after{content:'';position:absolute;left:-3px;right:-3px;bottom:-9px;height:5px;background:var(--gcl,#ffd166);border-radius:3px}
 .hand .card.gm.gfirst::after{left:-5px;border-top-left-radius:5px}
 .hand .card.gm.glast::after{right:-5px}
 
@@ -581,6 +584,25 @@ body.dealing .hand .card{visibility:hidden}
 /* tall phones in the Home Screen app: use the full screen height and keep clear of the home bar */
 @supports (height:100lvh){ @media (max-width:899px){ html,body{height:100lvh} } }
 @media (display-mode:standalone) and (max-width:899px){ #app{padding-bottom:calc(30px + env(safe-area-inset-bottom))} }
+
+/* hand size follows the number of players (set per game: --hz) */
+.hand .card{zoom:var(--hz,1)}
+button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px rgba(0,0,0,.35)}
+
+/* going-down announcement */
+.downban{position:fixed;left:-4%;right:-4%;top:26%;z-index:84;background:linear-gradient(#e6a21a,#c97d0c);color:#2a1700;text-align:center;padding:14px 10px 12px;border-top:5px solid #fff;border-bottom:5px solid #fff;transform:rotate(-2deg);box-shadow:0 10px 0 rgba(0,0,0,.35);animation:woahin .35s cubic-bezier(.2,1.4,.4,1);transition:opacity .4s,transform .4s}
+.downban.out{opacity:0;transform:rotate(-2deg) scale(1.08)}
+.dbbig{font-size:clamp(30px,8vw,66px);line-height:1.05;text-shadow:0 3px 0 rgba(255,255,255,.35)}
+.dbsub{font-size:clamp(17px,3.8vw,28px);margin-top:4px}
+
+/* "whoopsie daisy" bubble over the discard pile or a set */
+.pilebubble{position:absolute;left:50%;top:-34px;transform:translateX(-50%);background:#fff;color:#1a1405;border:3px solid #f3c34d;border-radius:12px;padding:3px 10px;font-size:16px;white-space:nowrap;z-index:45;pointer-events:none;animation:cpop .25s ease-out}
+.pile .stackwrap,.meld{position:relative}
+
+/* phones: the sets panel scrolls inside itself so the page never grows very tall */
+@media (max-width:899px){.side{max-height:44vh;max-height:44lvh;overflow:auto;-webkit-overflow-scrolling:touch}
+ .center-pile .card,.center-pile .back,.center-pile .empty{width:75px;height:107px}}
+@media (max-width:430px){.center-pile .card,.center-pile .back,.center-pile .empty{width:51px;height:73px}}
 
 </style>
 </head>
@@ -806,7 +828,7 @@ body.dealing .hand .card{visibility:hidden}
     bookMin: 3,
     runMin: 4,
     // books / runs required to go down, one entry per round
-    contracts: [{ b: 2, r: 0 }, { b: 0, r: 2 }, { b: 2, r: 1 }, { b: 1, r: 2 }, { b: 3, r: 0 }, { b: 0, r: 3 }],
+    contracts: [{ b: 2, r: 0 }, { b: 0, r: 2 }, { b: 2, r: 1 }, { b: 2, r: 1 }, { b: 3, r: 0 }, { b: 0, r: 3 }],
     maxBuys: 3,            // per player, per round
     buyWindowMs: 3000,
   lookMs: 10000,
@@ -910,7 +932,7 @@ body.dealing .hand .card{visibility:hidden}
   /* Going down: check the groups, then add any other natural cards from the hand that fit them
      (3,4,5,6,7 of hearts plus a 8 of hearts in hand). Going down must leave 0 cards (you go out)
      or at least 2, so there is always a card to discard. Returns {groups:[{type,ids}], extra:n} or {error}. */
-  function planDown(hand, groups) {
+  function planDown(hand, groups, melds) {
     const used = new Set(), built = [];
     for (const g of groups) {
       const cards = [];
@@ -935,6 +957,16 @@ body.dealing .hand .card{visibility:hidden}
         for (let gi = 0; gi < built.length; gi++) {
           const v = validateGroup(built[gi].type, built[gi].cards.concat([c]));
           if (v) { built[gi] = v; rest.splice(ri, 1); added.push({ gi: gi, card: c }); changed = true; break; }
+        }
+      }
+    }
+    if (rest.length === 1 && melds) {
+      // the last card can be played on a set that is already on the table, so you go down and out together
+      for (let mi = 0; mi < melds.length; mi++) {
+        const opts = layoffOptions(melds[mi], rest[0]);
+        if (opts.length) {
+          return { groups: built.map(function (v) { return { type: v.type, ids: v.cards.map(function (c) { return c.id; }) }; }), extra: added.length,
+            out: { id: rest[0].id, meldId: melds[mi].id, end: opts.indexOf('high') >= 0 ? 'high' : opts[0] } };
         }
       }
     }
@@ -1115,6 +1147,13 @@ body.dealing .hand .card{visibility:hidden}
     return !!(u && st.status === 'playing' && u.idx === idx && !st.pending && st.phase === 'draw' && st.buyOpen &&
       st.turn === (idx + 1) % n && st.lastDiscarder === idx && st.discard.length && st.discard[st.discard.length - 1].id === u.card.id);
   }
+  /* You can take back the card you just added to a set (only your latest lay-off, and only during that same turn). */
+  function canUndoLay(st, idx) {
+    const u = st.undoLay;
+    if (!u || st.status !== 'playing' || u.idx !== idx || st.turn !== idx || st.phase !== 'play') return false;
+    const m = st.melds.find(function (x) { return x.id === u.meldId; });
+    return !!(m && m.cards.some(function (c) { return c.id === u.cardId; }));
+  }
   function endTurn(st) {
     st.turn = (st.turn + 1) % st.players.length;
     st.phase = 'draw';
@@ -1209,6 +1248,7 @@ body.dealing .hand .card{visibility:hidden}
     if (idx < 0) return fail('Unknown player');
     if (!a || !a.type) return fail('Bad action');
 
+    if (a.type !== 'layoff' && a.type !== 'undoLay') st.undoLay = null;
     if (a.type === 'buy') return doBuy(st, idx, rng);
     if (a.type === 'respond') return doRespond(st, idx, a.choice, rng);
     if (a.type === 'cancelBuy') {
@@ -1222,7 +1262,21 @@ body.dealing .hand .card{visibility:hidden}
       me0.hand.push(top);
       st.turn = idx; st.phase = 'play'; st.turns -= 1;
       st.lastDiscarder = u.prevLast; st.buyOpen = false; st.discardSeq += 1; st.undo = null;
+      st.oops = { seq: (st.oops ? st.oops.seq : 0) + 1, idx: idx, kind: 'discard' };
       log(st, me0.name + ' took back their discard.');
+      return ok();
+    }
+    if (a.type === 'undoLay') {
+      const ul = st.undoLay, um = ul && st.melds.find(function (m) { return m.id === ul.meldId; });
+      if (!canUndoLay(st, idx)) return fail("It's too late to take that back");
+      const me1 = st.players[idx];
+      const ci = um.cards.findIndex(function (c) { return c.id === ul.cardId; });
+      const back = um.cards.splice(ci, 1)[0];
+      if (um.type === 'book') um.rank = ul.prevRank; else if (ul.end === 'low') um.start += 1;
+      me1.hand.push(back);
+      st.undoLay = null;
+      st.oops = { seq: (st.oops ? st.oops.seq : 0) + 1, idx: idx, kind: 'meld', meldId: um.id };
+      log(st, me1.name + ' took back a card from a set.');
       return ok();
     }
     if (idx !== st.turn) return fail("It's not your turn");
@@ -1255,7 +1309,7 @@ body.dealing .hand .card{visibility:hidden}
         const nr = groups.filter(function (g) { return g.type === 'run'; }).length;
         if (nb !== need.b || nr !== need.r || groups.length !== nb + nr)
           return fail('This round you need ' + contractText(need));
-        const pd = planDown(me.hand, groups);
+        const pd = planDown(me.hand, groups, st.melds);
         if (pd.error) return fail(pd.error);
         const used = new Set(), built = [];
         for (const g of pd.groups) {
@@ -1269,7 +1323,13 @@ body.dealing .hand .card{visibility:hidden}
           st.melds.push(m);
         });
         me.down = true;
-        log(st, me.name + ' went down with ' + contractText(need) + (pd.extra ? ' and added ' + pd.extra + ' more card' + (pd.extra > 1 ? 's' : '') + ' that fit.' : '.'));
+        st.lastDown = { idx: idx, seq: (st.lastDown ? st.lastDown.seq : 0) + 1, text: contractText(need) };
+        if (pd.out) {
+          const om = st.melds.find(function (m) { return m.id === pd.out.meldId; }), oi = handIndex(me.hand, pd.out.id), oc = me.hand.splice(oi, 1)[0];
+          if (om.type === 'book') { om.cards.push(oc); if (om.rank === null && !isJoker(oc)) om.rank = oc.r; }
+          else if (pd.out.end === 'low') { om.cards.unshift(oc); om.start -= 1; } else om.cards.push(oc);
+        }
+        log(st, me.name + ' went down with ' + contractText(need) + (pd.extra ? ' and added ' + pd.extra + ' more card' + (pd.extra > 1 ? 's' : '') + ' that fit' : '') + (pd.out ? ' and played their last card to go out.' : '.'));
         if (!me.hand.length) finishRound(st, idx);
         return ok();
       }
@@ -1287,6 +1347,7 @@ body.dealing .hand .card{visibility:hidden}
         if (opts.length > 1) end = opts.indexOf(a.end) >= 0 ? a.end : 'high';
         if (me.hand.length < 3) return fail('Keep at least one card. To go out, you need exactly 2 cards that both play, then use Play both cards and go out. Otherwise discard.');
         const card = me.hand.splice(i, 1)[0];
+        st.undoLay = { idx: idx, cardId: card.id, meldId: meld.id, end: end, prevRank: meld.rank };
         if (meld.type === 'book') {
           meld.cards.push(card);
           if (meld.rank === null && !isJoker(card)) meld.rank = card.r;
@@ -1379,6 +1440,9 @@ body.dealing .hand .card{visibility:hidden}
       stockCount: st.stock.length, discard: st.discard.slice(-2), discardCount: st.discard.length, discardDead: isTopDead(st),
       melds: st.melds, winnerIds: st.winnerIds, result: st.result,
       buyOpen: st.buyOpen, lastDiscarderId: st.lastDiscarder >= 0 ? st.players[st.lastDiscarder].id : null,
+      canUndoLay: canUndoLay(st, st.players.findIndex(function (p) { return p.id === pid; })),
+      oops: st.oops ? { seq: st.oops.seq, id: st.players[st.oops.idx].id, name: st.players[st.oops.idx].name, kind: st.oops.kind, meldId: st.oops.meldId || null } : null,
+      lastDown: st.lastDown ? { seq: st.lastDown.seq, id: st.players[st.lastDown.idx].id, name: st.players[st.lastDown.idx].name, text: st.lastDown.text } : null,
       canUndo: canUndo(st, st.players.findIndex(function (p) { return p.id === pid; })),
       discardSeq: st.discardSeq, playStart: st.playStart || 0, maxBuys: RULES.maxBuys,
       pending: st.pending ? {
@@ -1399,7 +1463,7 @@ body.dealing .hand .card{visibility:hidden}
     return [
       '3 players use 2 decks, 4 to 5 players use 3 decks, 6 to 8 players use 4 decks. You need at least 3 players. Each deck has 2 jokers. Jokers are wild.',
       'Everyone gets 11 cards each round. One card starts the discard pile. Play goes clockwise.',
-      'There are 6 rounds. To go down, you need: R1 2 books, R2 2 runs, R3 2 books + 1 run, R4 2 runs + 1 book, R5 3 books, R6 3 runs.',
+      'There are 6 rounds. To go down, you need: R1 2 books, R2 2 runs, R3 2 books + 1 run, R4 2 books + 1 run, R5 3 books, R6 3 runs.',
       'Book: 3 or more of the same rank, any suits. Run: 4 or more in a row, same suit. Aces are low or high, never both ways around.',
       'Each turn: draw the top discard or a card from the stock. Then, if you have your contract, lay it all down (only on your own turn). Then discard.',
       'When you go down, any other cards in your hand that fit your sets are added automatically. Going down must leave you with no cards (you go out) or at least 2, so you always have a card to discard.',
@@ -1542,7 +1606,7 @@ body.dealing .hand .card{visibility:hidden}
     if (!me || !top) return false;
     if (E.isJoker(top)) return true;
     if (me.down) return st.melds.some(function (m) { return E.canLayoff(m, top); });
-    const contract = E.RULES.contracts[st.round - 1];
+    const contract = E.RULES.contracts[(st.round || 1) - 1];
     const withTop = me.hand.concat([top]);
     const keep = pickDiscard({ hand: withTop, down: false }, contract);
     const after = withTop.filter(function (c) { return c !== keep; });
@@ -1594,7 +1658,7 @@ body.dealing .hand .card{visibility:hidden}
     if (!me.down) {
       const groups = findDown(me.hand, contract);
       const usedN = groups ? groups.reduce(function (n, g) { return n + g.ids.length; }, 0) : 0;
-      const pd = groups ? E.planDown(me.hand, groups) : null;
+      const pd = groups ? E.planDown(me.hand, groups, st.melds) : null;
       if (groups && pd && !pd.error && Math.random() < (cfg(level).downProb == null ? 1 : cfg(level).downProb)) return { type: 'down', groups: groups };
     } else {
       if (me.hand.length === 2 && E.goOutPlan(st.melds, me.hand)) return { type: 'goOut' };
@@ -1625,7 +1689,7 @@ body.dealing .hand .card{visibility:hidden}
   function wantsBuy(st, pid, level) {
     const c = cfg(level), me = st.players.find(function (p) { return p.id === pid; }), top = topDiscard(st);
     if (!me || !top || me.down || c.buyProb <= 0 || (E.isTopDead && E.isTopDead(st))) return false;
-    const contract = E.RULES.contracts[st.round - 1];
+    const contract = E.RULES.contracts[(st.round || 1) - 1];
     const withTop = me.hand.concat([top]);
     const keep = pickDiscard({ hand: withTop, down: false }, contract);
     const after = withTop.filter(function (x) { return x !== keep; });
@@ -1793,6 +1857,12 @@ body.dealing .hand .card{visibility:hidden}
     }
     this.changed();
   };
+  Host.prototype.pushChat = function (pid, txt, q) {
+    const who = this.seats.find(function (x) { return x.id === pid; });
+    this.chat = this.chat || []; this.chatN = (this.chatN || 0) + 1;
+    this.chat.push({ n: this.chatN, pid: pid, name: who ? who.name : 'Player', text: txt, q: !!q });
+    if (this.chat.length > 50) this.chat = this.chat.slice(-50);
+  };
   Host.prototype.err = function (pid, msg) {
     if (pid === this.me) toast(msg);
     else { const s = this.seats.find(function (x) { return x.id === pid; }); if (s && s.conn) s.conn.send({ t: 'err', msg: msg }); }
@@ -1812,6 +1882,7 @@ body.dealing .hand .card{visibility:hidden}
         if (a.type === 'draw' && this.lockLeft() > 0) { this.err(pid, 'Hold on a second, someone may buy that card first.'); return; }
         const r = E.apply(this.game, pid, a);
         if (!r.ok) this.err(pid, r.error);
+        else if (a.type === 'undoDiscard' || a.type === 'undoLay') this.pushChat(pid, 'Whoopsie daisy!', true);
         break;
       }
       case 'start':
@@ -1838,13 +1909,13 @@ body.dealing .hand .card{visibility:hidden}
       case 'chat': {
         const txt = String(msg.text || '').replace(/\s+/g, ' ').trim().slice(0, 120);
         if (!txt) return;
-        const nowT = Date.now(); this.chatLast = this.chatLast || {};
-        if (nowT - (this.chatLast[pid] || 0) < 500) return;
-        this.chatLast[pid] = nowT;
-        const who = this.seats.find(function (x) { return x.id === pid; });
-        this.chat = this.chat || []; this.chatN = (this.chatN || 0) + 1;
-        this.chat.push({ n: this.chatN, pid: pid, name: who ? who.name : 'Player', text: txt, q: !!msg.q });
-        if (this.chat.length > 50) this.chat = this.chat.slice(-50);
+        const nowT = Date.now(); this.chatLast = this.chatLast || {}; this.chatRun = this.chatRun || {};
+        const run = this.chatRun[pid] = this.chatRun[pid] || { n: 0, last: 0, until: 0 };
+        if (nowT < run.until) { this.err(pid, 'Slow down: you can chat again in ' + Math.ceil((run.until - nowT) / 1000) + ' seconds.'); return; }
+        if (nowT - run.last > 5000) run.n = 0;            // a pause resets the count
+        run.n += 1; run.last = nowT;
+        if (run.n >= 3) { run.until = nowT + 5000; run.n = 0; }   // after three messages, wait 5 seconds
+        this.pushChat(pid, txt, !!msg.q);
         break;
       }
       case 'speed':
@@ -2089,6 +2160,30 @@ body.dealing .hand .card{visibility:hidden}
     return ev;
   }
 
+  function sigNoChat(v) {
+    const c = v.chat, f = v.freezeMs, lk = v.lockMs; v.chat = null; v.freezeMs = 0; v.lockMs = 0;
+    let out; try { out = JSON.stringify(v); } catch (e) { out = String(Math.random()); }
+    v.chat = c; v.freezeMs = f; v.lockMs = lk; return out;
+  }
+  /* Big banner when someone goes down, and the "whoopsie daisy" bubble when someone takes a move back. */
+  let seenDown = null, seenOops = null, oopsBubble = null;
+  function announce(prev, v) {
+    if (v.status === 'lobby') { seenDown = null; seenOops = null; return; }
+    const ld = v.lastDown ? v.lastDown.seq : 0, op = v.oops ? v.oops.seq : 0;
+    if (seenDown === null || !prev || prev.status === 'lobby') { seenDown = ld; seenOops = op; return; }
+    if (ld > seenDown) { seenDown = ld; showDownBanner(v.lastDown, v); }
+    if (op > seenOops) { seenOops = op; oopsBubble = { until: Date.now() + 3500, kind: v.oops.kind, meldId: v.oops.meldId, name: v.oops.name }; }
+  }
+  function showDownBanner(d, v) {
+    const old = document.getElementById('downban'); if (old) old.remove();
+    const mine = d.id === v.youId;
+    const el = h('div', { class: 'downban', id: 'downban', onclick: function () { el.remove(); } },
+      h('div', { class: 'dbbig' }, mine ? 'YOU WENT DOWN!' : d.name.toUpperCase() + ' WENT DOWN!'),
+      h('div', { class: 'dbsub' }, d.text));
+    document.body.append(el);
+    try { Sound.meld(); } catch (e) {}
+    clearTimeout(showDownBanner._t); showDownBanner._t = setTimeout(function () { el.classList.add('out'); setTimeout(function () { el.remove(); }, 450); }, 4200);
+  }
   function setView(v) {
     const prev = V;
     const ids = new Set((v.hand || []).map(function (c) { return c.id; }));
@@ -2099,6 +2194,9 @@ body.dealing .hand .card{visibility:hidden}
     } else lastScores = {};
     V = v; freezeLocal = Date.now() + (v.freezeMs || 0);
     try { chatUpdate(prev, v); } catch (e) { /* chat must never break the game */ }
+    // a new chat message alone must not rebuild the table (it made the hand twitch)
+    if (prev && prev.status === v.status && sigNoChat(prev) === sigNoChat(v)) { prev.chat = v.chat; V = prev; applyBubbles(); return; }
+    announce(prev, v);
     const newRound = v.status === 'playing' && v.discardCount <= 1 && !v.players.some(function (p) { return p.down; }) && (!prev || prev.status !== 'playing' || prev.round !== v.round);
     const dealMs = E.RULES.dealMs || 0;
     const wasDown = prev && prev.players && (prev.players.find(function (p) { return p.id === prev.youId; }) || {}).down;
@@ -2135,8 +2233,15 @@ body.dealing .hand .card{visibility:hidden}
       const b = bubbles[pid];
       if (b.until < now) { delete bubbles[pid]; return; }
       const seat = document.querySelector('.seat[data-pid="' + pid + '"]');
-      if (seat && !seat.querySelector('.cbubble')) seat.append(h('div', { class: 'cbubble' }, b.text));
+      if (seat) { const eb = seat.querySelector('.cbubble'); if (eb) { if (eb.textContent !== b.text) eb.textContent = b.text; } else seat.append(h('div', { class: 'cbubble' }, b.text)); }
     });
+    if (oopsBubble) {
+      if (oopsBubble.until < now) oopsBubble = null;
+      else {
+        const host = oopsBubble.kind === 'meld' ? document.querySelector('.meld[data-meld="' + oopsBubble.meldId + '"]') : document.querySelector('.pile.disc .stackwrap');
+        if (host && !host.querySelector('.pilebubble')) host.append(h('div', { class: 'pilebubble' }, 'Whoopsie daisy!'));
+      }
+    }
   }
   function chatSend(text, quick) { if (net && text) net.send({ t: 'chat', text: text, q: !!quick }); }
   function chatUpdate(prev, v) {
@@ -2364,13 +2469,14 @@ body.dealing .hand .card{visibility:hidden}
      RENDERING
      ===================================================== */
   const SUIT_ORDER = { S: 0, H: 1, C: 2, D: 3, J: 4 };
+  const HAND_ZOOM = { 2: 1.2, 3: 1.2, 4: 1.1, 5: 1.0, 6: 0.94, 7: 0.88, 8: 0.84 };
   function sortedHand(hand) {
     const byId = {}; hand.forEach(function (c) { byId[c.id] = c; });
     // current order: what you had, with new cards on the end
     const seen = {}; let cur = [];
     handOrder.forEach(function (id) { if (byId[id] && !seen[id]) { seen[id] = 1; cur.push(id); } });
     hand.forEach(function (c) { if (!seen[c.id]) { seen[c.id] = 1; cur.push(c.id); } });
-    groups = groups.map(function (g) { return g.filter(function (id) { return byId[id]; }); }).filter(function (g) { return g.length >= 2; });
+    groups = groups.map(function (g) { const n = g.filter(function (id) { return byId[id]; }); n.col = g.col; return n; }).filter(function (g) { return g.length >= 2; });
     const inGroup = {}; groups.forEach(function (g) { g.forEach(function (id) { inGroup[id] = true; }); });
     // sort the loose cards into the slots that saved groups don't occupy
     if (sortMode !== 'custom') {
@@ -2379,7 +2485,7 @@ body.dealing .hand .card{visibility:hidden}
       const lo = {}, hi = {};
       hand.forEach(function (c) { if (c.s !== 'J' && c.r !== 1) { lo[c.s] = Math.min(lo[c.s] || 99, c.r); hi[c.s] = Math.max(hi[c.s] || 0, c.r); } });
       const rv = function (c) { return c.s === 'J' ? 99 : (c.r === 1 && hi[c.s] && (14 - hi[c.s]) < (lo[c.s] - 1)) ? 14 : c.r; };
-      if (sortMode === 'rank') loose.sort(function (x, y) { return rv(x) - rv(y) || SUIT_ORDER[x.s] - SUIT_ORDER[y.s]; });
+      if (sortMode === 'rank') loose.sort(function (x, y) { return (x.s === 'J' ? 99 : x.r) - (y.s === 'J' ? 99 : y.r) || SUIT_ORDER[x.s] - SUIT_ORDER[y.s]; });   // by rank: every ace together
       else loose.sort(function (x, y) { return SUIT_ORDER[x.s] - SUIT_ORDER[y.s] || rv(x) - rv(y); });
       let k = 0;
       cur = cur.map(function (id) { return inGroup[id] ? id : loose[k++].id; });
@@ -2725,11 +2831,14 @@ body.dealing .hand .card{visibility:hidden}
         grp = ' gm' + (prevIn ? '' : ' gfirst') + (nextIn ? '' : ' glast');
       }
       const used = building && bgroups.some(function (g) { return g.indexOf(c.id) >= 0; });
-      return cardEl(c, { sel: selected.has(c.id), used: used, grp: grp, zone: 'hand', onclick: function (e) {
+      const cel = cardEl(c, { sel: selected.has(c.id), used: used, grp: grp, zone: 'hand', onclick: function (e) {
         if (suppressClick) return;
         if (building) builderToggle(c.id); else toggleSel(c.id, e.currentTarget);
       } });
+      if (gi >= 0) { const gc = GCOLS[(groups[gi].col || 0) % GCOLS.length]; cel.style.setProperty('--gc', gc[0]); cel.style.setProperty('--gcb', gc[1]); cel.style.setProperty('--gcl', gc[2]); }
+      return cel;
     }));
+    handEl.style.setProperty('--hz', String(HAND_ZOOM[Math.min(V.players.length, 8)] || 1));
 
     let controls, hint = null, layBar = null;
     if (building && canPlay) controls = builderPanel();
@@ -2741,10 +2850,12 @@ body.dealing .hand .card{visibility:hidden}
       const sortBtn = h('button', { class: 'ghost', onclick: function () { sortMode = sortMode === 'suit' ? 'rank' : 'suit'; Sound.flip(); render(); } }, 'Sort: ' + (sortMode === 'custom' ? 'mine' : sortMode));
       const autoBtn = me && me.down ? h('button', { class: autoLay ? 'green' : 'ghost', title: 'On your turn the game draws, plays cards (jokers last) on sets, goes out when it can, and discards for you', onclick: function () { autoLay = !autoLay; toast(autoLay ? 'Auto-play on: it will draw, play on sets, and discard for you.' : 'Auto-play off.'); render(); } }, 'Auto-play: ' + (autoLay ? 'ON' : 'OFF')) : null;
       const backBtn = V.canUndo ? h('button', { class: 'orange backbtn', title: 'Take your discard back (only until the next player acts)', onclick: function () { act({ type: 'undoDiscard' }); } }, '↩ BACK (undo discard)') : null;
-      controls = h('div', { class: 'actions' }, backBtn, goBtn, endBtn, grpBtn, clearBtn, sortBtn, autoBtn);
+      const backLay = V.canUndoLay ? h('button', { class: 'orange backbtn', title: 'Take back the card you just added to a set', onclick: function () { act({ type: 'undoLay' }); } }, '↩ UNDO (card added to a set)') : null;
+      const mergeBtn = h('button', { class: 'blue', disabled: true, style: 'display:none', onclick: function () { mergeGroups(); } }, 'Add to group');
+      controls = h('div', { class: 'actions' }, backBtn, backLay, goBtn, endBtn, mergeBtn, grpBtn, clearBtn, sortBtn, autoBtn);
       hint = h('div', { class: 'hint' });
       layBar = h('div', { class: 'laybar' });
-      gameUI = { canPlay: canPlay, down: !!(me && me.down), clear: clearBtn, grp: grpBtn, hint: hint, lay: layBar };
+      gameUI = { canPlay: canPlay, down: !!(me && me.down), clear: clearBtn, grp: grpBtn, merge: mergeBtn, hint: hint, lay: layBar };
     }
 
     // laid-down sets, grouped by who put them down
@@ -2892,7 +3003,7 @@ body.dealing .hand .card{visibility:hidden}
         h('button', { class: 'orange', onclick: function () {
           const g = Bots.findDown(V.hand, V.contract);
           if (!g) { toast("You can't go down with this hand yet."); return; }
-          const pd2 = E.planDown(V.hand, g); const gg = pd2 && !pd2.error ? pd2.groups : g;
+          const pd2 = E.planDown(V.hand, g, V.melds); const gg = pd2 && !pd2.error ? pd2.groups : g;
           bgroups = gg.map(function (x) { return sortGroup(x.type, x.ids); }); bactive = 0; Sound.meld(); render();
         } }, 'Auto'),
         h('button', { class: 'ghost', onclick: function () { building = false; bgroups = []; render(); } }, 'Cancel')));
@@ -2953,16 +3064,36 @@ body.dealing .hand .card{visibility:hidden}
     updateSelUI();
   }
   /* Save the selected cards as a group (yellow box), or break up the groups they belong to. */
+  const GCOLS = [['#e6b422', '#fff0a8', '#ffd166'], ['#1fb5c9', '#d6f6fb', '#5fe0ee'], ['#e0558f', '#ffe0ee', '#ff8fbf'], ['#3fae6b', '#dcf8e6', '#7fe3a5'], ['#9a62d6', '#ece0fb', '#c79bf5'], ['#e07a3a', '#ffe6d2', '#ffb27a']];
+  function freeGroupColor() { const used = groups.map(function (g) { return g.col; }); for (let i = 0; i < GCOLS.length; i++) if (used.indexOf(i) < 0) return i; return groups.length % GCOLS.length; }
   function toggleGroup() {
     const ids = Array.from(selected);
     const touching = groups.filter(function (g) { return g.some(function (id) { return selected.has(id); }); });
     if (touching.length) groups = groups.filter(function (g) { return touching.indexOf(g) < 0; });
-    else if (ids.length >= 2) groups.push(ids);
+    else if (ids.length >= 2) { ids.col = freeGroupColor(); groups.push(ids); }
+    selected = new Set(); Sound.meld(); render();
+  }
+  /* With a group selected, picking other cards offers "Add to group": everything selected joins one group. */
+  function mergeGroups() {
+    const touching = groups.filter(function (g) { return g.some(function (id) { return selected.has(id); }); });
+    if (!touching.length) return;
+    const target = touching[0], col = target.col;
+    const all = new Set(); touching.forEach(function (g) { g.forEach(function (id) { all.add(id); }); });
+    selected.forEach(function (id) { all.add(id); });
+    groups = groups.filter(function (g) { return touching.indexOf(g) < 0; });
+    const merged = Array.from(all); merged.col = col; groups.push(merged);
     selected = new Set(); Sound.meld(); render();
   }
   function updateSelUI() {
     if (!V || !gameUI) return;
     const sel = V.hand.filter(function (c) { return selected.has(c.id); });
+    if (gameUI.merge) {
+      const touching = groups.filter(function (g) { return g.some(function (id) { return selected.has(id); }); });
+      const loose = sel.filter(function (c) { return !groups.some(function (g) { return g.indexOf(c.id) >= 0; }); });
+      const show = touching.length >= 1 && (loose.length >= 1 || touching.length >= 2);
+      gameUI.merge.style.display = show ? '' : 'none'; gameUI.merge.disabled = !show;
+      gameUI.merge.textContent = touching.length >= 2 ? 'Merge groups' : 'Add to group';
+    }
     const canPlay = gameUI.canPlay;
     const dp = document.querySelector('.pile.disc');
     if (dp) dp.classList.toggle('ready', canPlay && sel.length === 1 && V.hand.length > 1);
@@ -3172,7 +3303,7 @@ body.dealing .hand .card{visibility:hidden}
     let handN = 0;
     app.querySelectorAll('.card[data-id]').forEach(function (el) {
       const id = el.dataset.id, was = before.cards.get(id), zone = el.dataset.zone;
-      if (was) { flyFrom(el, was, 0, false); return; }
+      if (was) { if (zone !== 'hand') flyFrom(el, was, 0, false); return; }   // cards in your hand never slide around
       if (!ev) return;
       if (zone === 'hand') {
         if (ev.newRound) { flyFrom(el, stockR, 120 + handN * 70, true); handN++; }
@@ -3292,7 +3423,6 @@ body.dealing .hand .card{visibility:hidden}
     if (ev.newMelds && ev.newMelds.length) {
       const byOwner = {};
       ev.newMelds.forEach(function (m) { (byOwner[m.owner] = byOwner[m.owner] || []).push(m); });
-      Object.keys(byOwner).forEach(function (oid) { showFlash(oid, byOwner[oid]); });
     }
     (ev.newMelds || []).forEach(function (m) {
       setTimeout(function () {
@@ -3321,6 +3451,25 @@ body.dealing .hand .card{visibility:hidden}
   }
 
   /* Drag cards in your hand to put them in your own order */
+  /* While you drag, a copy of the card (or the whole group) is glued to your finger or mouse. */
+  function startGhost(d) {
+    const first = d.mem[0].getBoundingClientRect();
+    const g = h('div', { class: 'dragghost' });
+    g.style.left = first.left + 'px'; g.style.top = first.top + 'px';
+    d.mem.forEach(function (c, i) {
+      const r = c.getBoundingClientRect(), cl = c.cloneNode(true), zm = parseFloat(getComputedStyle(c).zoom) || 1;
+      cl.className = cl.className.replace(/\b(sel|dragging|gm|gfirst|glast)\b/g, '').trim();
+      cl.style.position = 'absolute'; cl.style.left = (r.left - first.left) + 'px'; cl.style.top = (r.top - first.top) + 'px';
+      cl.style.margin = '0'; cl.style.zoom = String(zm); cl.style.transform = 'none'; cl.style.setProperty('--ty', '0px'); cl.style.setProperty('--rot', '0deg');
+      g.append(cl); c.classList.add('dragging');
+    });
+    document.body.append(g); d.ghost = g;
+  }
+  function endGhost(d) {
+    if (d.ghost) { d.ghost.remove(); d.ghost = null; }
+    d.mem.forEach(function (c) { c.classList.remove('dragging'); c.style.translate = ''; });
+    const dp = document.querySelector('.pile.disc'); if (dp) dp.classList.remove('dropok');
+  }
   function setupDrag() {
     let d = null;
     document.addEventListener('pointerdown', function (e) {
@@ -3334,8 +3483,10 @@ body.dealing .hand .card{visibility:hidden}
     document.addEventListener('pointermove', function (e) {
       if (!d || e.pointerId !== d.pid) return;
       const dx = e.clientX - d.x, dy = e.clientY - d.y;
-      if (!d.on) { if (Math.hypot(dx, dy) < 10) return; d.on = true; d.mem.forEach(function (c) { c.classList.add('dragging'); }); }
-      d.mem.forEach(function (c) { c.style.translate = dx + 'px ' + dy + 'px'; });
+      if (!d.on) { if (Math.hypot(dx, dy) < 10) return; d.on = true; startGhost(d); }
+      if (d.ghost) d.ghost.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+      const dpile = document.querySelector('.pile.disc');
+      if (dpile && !d.build) { const over = document.elementsFromPoint(e.clientX, e.clientY).some(function (el) { return el.closest && el.closest('.pile.disc'); }); dpile.classList.toggle('dropok', over && !!(gameUI && gameUI.canPlay)); }
       if (d.build) {
         const under = document.elementsFromPoint(e.clientX, e.clientY).map(function (el) { return el.closest && el.closest('.slot'); }).filter(Boolean)[0];
         document.querySelectorAll('.slot.drop').forEach(function (x) { if (x !== under) x.classList.remove('drop'); });
@@ -3346,13 +3497,20 @@ body.dealing .hand .card{visibility:hidden}
       if (!d || e.pointerId !== d.pid) return;
       const was = d; d = null;
       if (!was.on) return;
-      was.mem.forEach(function (c) { c.classList.remove('dragging'); c.style.translate = ''; });
+      endGhost(was);
       if (was.build) {
         document.querySelectorAll('.slot.drop').forEach(function (x) { x.classList.remove('drop'); });
         const slotEl = document.elementsFromPoint(e.clientX, e.clientY).map(function (el) { return el.closest && el.closest('.slot'); }).filter(Boolean)[0];
         suppressClick = true; setTimeout(function () { suppressClick = false; }, 150);
         if (slotEl) builderAssign(was.id, parseInt(slotEl.dataset.slot, 10)); else render();
         return;
+      }
+      // dropped on the discard pile: discard that card
+      const overDisc = document.elementsFromPoint(e.clientX, e.clientY).some(function (el) { return el.closest && el.closest('.pile.disc'); });
+      if (overDisc && gameUI && gameUI.canPlay && !building) {
+        suppressClick = true; setTimeout(function () { suppressClick = false; }, 150);
+        if (V.hand.length <= 1) { toast('Your last card has to be played on a set.'); render(); return; }
+        selected = new Set(); act({ type: 'discard', id: was.id }); render(); return;
       }
       const others = Array.prototype.filter.call(document.querySelectorAll('.hand .card'), function (c) { return was.mem.indexOf(c) < 0; });
       let idx = 0;
@@ -3373,7 +3531,7 @@ body.dealing .hand .card{visibility:hidden}
     };
     document.addEventListener('pointerup', end);
     document.addEventListener('pointercancel', function (e) {
-      if (d && d.on) d.mem.forEach(function (c) { c.classList.remove('dragging'); c.style.translate = ''; });
+      if (d && d.on) endGhost(d);
       d = null; void e;
     });
   }
@@ -3448,4 +3606,4 @@ body.dealing .hand .card{visibility:hidden}
 </script>
 </body>
 </html>
-<!-- build 1795759828 -->
+<!-- build 1795766413 -->

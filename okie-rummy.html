@@ -111,7 +111,7 @@ h1,h2,h3{margin:0;font-weight:700}
 @keyframes wiggle{0%,100%{transform:rotate(-1.2deg)}50%{transform:rotate(1.2deg) scale(1.03)}}
 
 /* ---------- cards ---------- */
-.card{position:relative;width:58px;height:82px;flex:0 0 auto;transform:rotate(var(--rot,0deg)) translateY(var(--ty,0px));transition:transform .18s cubic-bezier(.3,1.6,.5,1);user-select:none;-webkit-user-select:none;z-index:var(--z,1)}
+.card{position:relative;width:58px;height:82px;flex:0 0 auto;transform:rotate(var(--rot,0deg)) translateY(var(--ty,0px));transition:transform .18s cubic-bezier(.3,1.6,.5,1),translate .16s ease-out;user-select:none;-webkit-user-select:none;z-index:var(--z,1)}
 .card .face{position:absolute;inset:0;background:#fdf6e3;border:3px solid #16111f;border-radius:9px;color:var(--c);
   box-shadow:0 4px 0 rgba(0,0,0,.45);overflow:hidden;transform:perspective(500px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));transition:transform .12s,box-shadow .12s}
 .card.sm .face{border-width:2px;border-radius:7px;box-shadow:0 3px 0 rgba(0,0,0,.45)}
@@ -133,7 +133,7 @@ h1,h2,h3{margin:0;font-weight:700}
 @keyframes bob{0%,100%{translate:0 0}50%{translate:0 -3px}}
 @media (hover:hover){.hand .card:hover{--z:30 !important}
 .hand .card:hover .face{box-shadow:0 8px 0 rgba(0,0,0,.4),0 0 0 2px var(--gold)}}
-.card.sel{--ty:-26px !important;--z:25 !important}
+.card.sel{--z:25 !important;translate:0 -26px}
 .card.sel .face{box-shadow:0 10px 0 rgba(0,0,0,.4),0 0 0 3px var(--gold),0 0 22px rgba(255,209,102,.7);animation:jig .35s ease-in-out infinite}
 @keyframes jig{0%,100%{rotate:-1.5deg}50%{rotate:1.5deg}}
 .back{width:58px;height:82px;border-radius:9px;border:3px solid #16111f;background:
@@ -604,6 +604,9 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
  .center-pile .card,.center-pile .back,.center-pile .empty{width:75px;height:107px}}
 @media (max-width:430px){.center-pile .card,.center-pile .back,.center-pile .empty{width:51px;height:73px}}
 
+.hand .card{-webkit-tap-highlight-color:transparent}
+.hand .card:not(.sel){translate:0 0}
+
 </style>
 </head>
 <body>
@@ -1010,6 +1013,34 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
     return left.length ? null : plan;
   }
   /* With exactly 2 cards in hand: can both be played on laid-down sets? Returns [{card, meldId, end}, ...] or null. */
+  /* Find a way to put EVERY one of these cards onto the table sets (each card may go on a different set).
+     Returns [{card, meldId, end}] in the order to play them, or null. Small depth-first search. */
+  function layAllPlan(melds, cards) {
+    const state = melds.map(function (m) { return { id: m.id, type: m.type, rank: m.rank, suit: m.suit, start: m.start, cards: m.cards.slice() }; });
+    let nodes = 0;
+    function go(left, plan) {
+      if (!left.length) return plan;
+      if (++nodes > 6000) return null;
+      for (let i = 0; i < left.length; i++) {
+        const c = left[i];
+        for (let mi = 0; mi < state.length; mi++) {
+          const m = state[mi], opts = layoffOptions(m, c);
+          for (let k = 0; k < opts.length; k++) {
+            const e = opts[k], snap = { rank: m.rank, start: m.start };
+            if (m.type === 'book') { m.cards.push(c); if (m.rank === null && !isJoker(c)) m.rank = c.r; }
+            else if (e === 'low') { m.cards.unshift(c); m.start -= 1; } else m.cards.push(c);
+            const rest = left.slice(); rest.splice(i, 1);
+            const r = go(rest, plan.concat([{ card: c, meldId: m.id, end: e }]));
+            if (r) return r;
+            if (m.type === 'book') { m.cards.pop(); m.rank = snap.rank; }
+            else if (e === 'low') { m.cards.shift(); m.start = snap.start; } else m.cards.pop();
+          }
+        }
+      }
+      return null;
+    }
+    return go(cards.slice(), []);
+  }
   function goOutPlan(melds, hand) {
     if (!hand || hand.length !== 2) return null;
     for (let order = 0; order < 2; order++) {
@@ -1149,8 +1180,10 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
   function canUndoLay(st, idx) {
     const u = st.undoLay;
     if (!u || st.status !== 'playing' || u.idx !== idx || st.turn !== idx || st.phase !== 'play') return false;
-    const m = st.melds.find(function (x) { return x.id === u.meldId; });
-    return !!(m && m.cards.some(function (c) { return c.id === u.cardId; }));
+    return !!(u.items && u.items.length && u.items.every(function (it) {
+      const m = st.melds.find(function (x) { return x.id === it.meldId; });
+      return !!(m && m.cards.some(function (c) { return c.id === it.cardId; }));
+    }));
   }
   function endTurn(st) {
     st.turn = (st.turn + 1) % st.players.length;
@@ -1246,7 +1279,8 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
     if (idx < 0) return fail('Unknown player');
     if (!a || !a.type) return fail('Bad action');
 
-    if (a.type !== 'layoff' && a.type !== 'undoLay') st.undoLay = null;
+    if (a.type !== 'layoff' && a.type !== 'layoffMany' && a.type !== 'layAll' && a.type !== 'undoLay') st.undoLay = null;
+    if (a.type === 'layoff' || a.type === 'layoffMany' || a.type === 'layAll') st.undoLay = null;   // each play starts a fresh undo
     if (a.type === 'buy') return doBuy(st, idx, rng);
     if (a.type === 'respond') return doRespond(st, idx, a.choice, rng);
     if (a.type === 'cancelBuy') {
@@ -1265,16 +1299,19 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
       return ok();
     }
     if (a.type === 'undoLay') {
-      const ul = st.undoLay, um = ul && st.melds.find(function (m) { return m.id === ul.meldId; });
       if (!canUndoLay(st, idx)) return fail("It's too late to take that back");
-      const me1 = st.players[idx];
-      const ci = um.cards.findIndex(function (c) { return c.id === ul.cardId; });
-      const back = um.cards.splice(ci, 1)[0];
-      if (um.type === 'book') um.rank = ul.prevRank; else if (ul.end === 'low') um.start += 1;
-      me1.hand.push(back);
+      const ul = st.undoLay, me1 = st.players[idx];
+      let lastMeld = null;
+      for (let k = ul.items.length - 1; k >= 0; k--) {           // undo in reverse order so run ends come off cleanly
+        const it = ul.items[k], um = st.melds.find(function (m) { return m.id === it.meldId; });
+        const ci = um.cards.findIndex(function (c) { return c.id === it.cardId; });
+        const back = um.cards.splice(ci, 1)[0];
+        if (um.type === 'book') um.rank = it.prevRank; else if (it.end === 'low') um.start += 1;
+        me1.hand.push(back); lastMeld = um;
+      }
       st.undoLay = null;
-      st.oops = { seq: (st.oops ? st.oops.seq : 0) + 1, idx: idx, kind: 'meld', meldId: um.id };
-      log(st, me1.name + ' took back a card from a set.');
+      st.oops = { seq: (st.oops ? st.oops.seq : 0) + 1, idx: idx, kind: 'meld', meldId: lastMeld.id };
+      log(st, me1.name + ' took back ' + (ul.items.length > 1 ? ul.items.length + ' cards' : 'a card') + ' from the sets.');
       return ok();
     }
     if (idx !== st.turn) return fail("It's not your turn");
@@ -1345,7 +1382,7 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
         if (opts.length > 1) end = opts.indexOf(a.end) >= 0 ? a.end : 'high';
         if (me.hand.length < 3) return fail('Keep at least one card. To go out, you need exactly 2 cards that both play, then use Play both cards and go out. Otherwise discard.');
         const card = me.hand.splice(i, 1)[0];
-        st.undoLay = { idx: idx, cardId: card.id, meldId: meld.id, end: end, prevRank: meld.rank };
+        st.undoLay = { idx: idx, items: [{ cardId: card.id, meldId: meld.id, end: end, prevRank: meld.rank }] };
         if (meld.type === 'book') {
           meld.cards.push(card);
           if (meld.rank === null && !isJoker(card)) meld.rank = card.r;
@@ -1392,13 +1429,46 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
         const plan = layoffPlan(meld, cards, a.end);
         if (!plan) return fail('Those cards do not all fit there');
         if (me.hand.length - cards.length < 2) return fail('Keep at least one card. To go out, you need exactly 2 cards that both play, then use Play both cards and go out. Otherwise discard.');
+        const items1 = [];
         plan.forEach(function (pl) {
           me.hand.splice(handIndex(me.hand, pl.card.id), 1);
+          items1.push({ cardId: pl.card.id, meldId: meld.id, end: pl.end, prevRank: meld.rank });
           if (meld.type === 'book') { meld.cards.push(pl.card); if (meld.rank === null && !isJoker(pl.card)) meld.rank = pl.card.r; }
           else if (pl.end === 'low') { meld.cards.unshift(pl.card); meld.start -= 1; }
           else meld.cards.push(pl.card);
         });
+        st.undoLay = { idx: idx, items: items1 };
         log(st, me.name + ' added ' + plan.map(function (pl) { return cardLabel(pl.card); }).join(', ') + ' to a set.');
+        if (!me.hand.length) finishRound(st, idx);
+        return ok();
+      }
+
+      case 'layAll': {   // play every selected card at once, each on whichever set it fits (sets may differ)
+        if (st.phase !== 'play') return fail('Draw a card first');
+        if (!me.down) return fail('Go down before adding to sets');
+        const ids = Array.isArray(a.ids) ? a.ids : [];
+        const cards = [];
+        for (let k = 0; k < ids.length; k++) {
+          const i = handIndex(me.hand, ids[k]);
+          if (i < 0 || cards.indexOf(me.hand[i]) >= 0) return fail('Card not in your hand');
+          cards.push(me.hand[i]);
+        }
+        if (!cards.length) return fail('Pick at least one card');
+        const left = me.hand.length - cards.length;
+        if (left < 2 && !(left === 0 && me.hand.length === 2)) return fail('Keep at least one card. To go out, you need exactly 2 cards that both play. Otherwise discard.');
+        const plan = layAllPlan(st.melds, cards);
+        if (!plan) return fail('Those cards do not all fit on the sets on the table');
+        const items2 = [];
+        plan.forEach(function (pl) {
+          const meld = st.melds.find(function (m) { return m.id === pl.meldId; });
+          me.hand.splice(handIndex(me.hand, pl.card.id), 1);
+          items2.push({ cardId: pl.card.id, meldId: meld.id, end: pl.end, prevRank: meld.rank });
+          if (meld.type === 'book') { meld.cards.push(pl.card); if (meld.rank === null && !isJoker(pl.card)) meld.rank = pl.card.r; }
+          else if (pl.end === 'low') { meld.cards.unshift(pl.card); meld.start -= 1; }
+          else meld.cards.push(pl.card);
+        });
+        st.undoLay = { idx: idx, items: items2 };
+        log(st, me.name + ' added ' + plan.map(function (pl) { return cardLabel(pl.card); }).join(', ') + ' to the sets.');
         if (!me.hand.length) finishRound(st, idx);
         return ok();
       }
@@ -1480,7 +1550,7 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
     isJoker: isJoker, rankLabel: rankLabel, cardLabel: cardLabel, cardPoints: cardPoints, contractText: contractText,
     makeDeck: makeDeck, shuffle: shuffle, planDown: planDown,
     checkBook: checkBook, layoutRun: layoutRun, validateGroup: validateGroup,
-    isTopDead: isTopDead, layoffOptions: layoffOptions, layoffPlan: layoffPlan, goOutPlan: goOutPlan, canLayoff: canLayoff, meldRankAt: meldRankAt,
+    isTopDead: isTopDead, layoffOptions: layoffOptions, layoffPlan: layoffPlan, goOutPlan: goOutPlan, layAllPlan: layAllPlan, canLayoff: canLayoff, meldRankAt: meldRankAt,
     newGame: newGame, nextRound: nextRound, apply: apply, cancelBuy: cancelBuy, view: view, rulesSummary: rulesSummary,
     contractFor: contractFor
   };
@@ -3059,6 +3129,7 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
     if (on) Sound.select(selected.size); else Sound.deselect();
     document.querySelectorAll('.hand .card').forEach(function (c) { if (members.indexOf(c.dataset.id) >= 0) c.classList.toggle('sel', on); });
     el.classList.toggle('sel', on);
+    void el.offsetWidth;                                  // make sure iOS repaints the card back into the fan
     updateSelUI();
   }
   /* Save the selected cards as a group (yellow box), or break up the groups they belong to. */
@@ -3084,6 +3155,7 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
   }
   function updateSelUI() {
     if (!V || !gameUI) return;
+    document.querySelectorAll('.hand .card').forEach(function (c) { const want = selected.has(c.dataset.id); if (c.classList.contains('sel') !== want) c.classList.toggle('sel', want); });   // the screen always matches what is really selected
     const sel = V.hand.filter(function (c) { return selected.has(c.id); });
     if (gameUI.merge) {
       const touching = groups.filter(function (g) { return g.some(function (id) { return selected.has(id); }); });
@@ -3109,7 +3181,7 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
     let hint = '';
     if (canPlay) {
       if (V.hand.length === 1) hint = gameUI.down ? 'Keep this card and End turn. Next turn, draw a card, and if both play you can go out.' : 'Last card.';
-      else if (sel.length >= 1) hint = gameUI.down ? 'Tap a glowing set to add ' + (sel.length > 1 ? 'these cards' : 'this card') + ', or select one card and tap the discard pile to discard it.' : 'Tap the discard pile to discard this card, or tap Go down first.';
+      else if (sel.length >= 1) hint = gameUI.down ? (sel.length > 1 ? 'Select every card you can play, then tap PLAY ALL. They can go on different sets. Or tap one glowing set.' : 'Tap a glowing set to add this card, select more cards to play several at once, or tap the discard pile to discard it.') : 'Tap the discard pile to discard this card, or tap Go down first.';
       else hint = gameUI.down ? 'Tap a card to add it to a set, or select one and tap the discard pile.' : 'Select a card and tap the discard pile to discard it, or Go down with your sets.';
     }
     gameUI.hint.textContent = hint;
@@ -3133,6 +3205,19 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
       return;
     }
     if (!cards || !cards.length) return;
+    // several cards that fit on DIFFERENT sets: one button plays them all
+    if (cards.length >= 2) {
+      const left = V.hand.length - cards.length;
+      const plan = (left >= 2 || (left === 0 && V.hand.length === 2)) ? E.layAllPlan(V.melds, cards) : null;
+      if (plan) {
+        const sets = {}; plan.forEach(function (pl) { sets[pl.meldId] = 1; });
+        const nsets = Object.keys(sets).length;
+        bar.append(h('button', { class: 'green goout', onclick: function () { selected = new Set(); act({ type: 'layAll', ids: cards.map(function (c) { return c.id; }) }); } },
+          (left === 0 ? 'PLAY BOTH CARDS AND GO OUT' : 'PLAY ALL ' + cards.length + ' CARDS') + (nsets > 1 ? ' (on ' + nsets + ' sets)' : '')));
+      } else if (left < 2 && E.layAllPlan(V.melds, cards)) {
+        bar.append(h('span', { class: 'muted' }, 'Those all play, but you must keep at least 2 cards (or hold exactly 2 to go out). Select fewer.'));
+      }
+    }
     const btns = [];
     V.melds.forEach(function (m) {
       const opts = layEnds(m, cards);
@@ -3604,4 +3689,4 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
 </script>
 </body>
 </html>
-<!-- build 1795767771 -->
+<!-- build 1795844348 -->

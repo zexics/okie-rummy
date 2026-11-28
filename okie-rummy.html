@@ -1104,7 +1104,7 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
     st.round += 1;
     if (st.round > 1) st.dealer = (st.dealer + 1) % n;
     const deck = shuffle(makeDeck(RULES.decksFor(n)), rng);
-    st.players.forEach(function (p) { p.hand = deck.splice(0, RULES.handSize); p.down = false; p.buys = 0; });
+    st.players.forEach(function (p) { p.hand = deck.splice(0, RULES.handSize); p.down = false; p.buys = 0; p.took = []; });
     st.discard = [deck.pop()];
     st.stock = deck;
     st.melds = [];
@@ -1247,7 +1247,7 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
     const bought = wi !== st.turn;
     const card = st.discard.pop();
     if (!bought && (st.deadBelow || 0) > st.discard.length) st.deadBelow = st.discard.length;
-    w.hand.push(card);
+    w.hand.push(card); (w.took = w.took || []).push(card);   // everyone saw this pickup, so bots can read what this player is collecting
     if (wi === st.turn) {
       st.phase = 'play'; st.playStart = w.hand.length;
       log(st, w.name + ' took the ' + cardLabel(card) + '.');
@@ -1324,7 +1324,7 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
           if (!st.discard.length) return fail('The discard pile is empty');
           if (isTopDead(st)) return fail('That card is dead (it was under a bought card). Draw from the stock.');
           const c = takeTop(st);
-          me.hand.push(c);
+          me.hand.push(c); (me.took = me.took || []).push(c);
           log(st, me.name + ' took the ' + cardLabel(c) + ' from the discard pile.');
         } else {
           const c = drawFromStock(st, rng);
@@ -1633,23 +1633,56 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
     return groups;
   }
 
+  /* ---- What a careful player remembers: which cards are gone, and what the others are collecting ---- */
+  function copiesOf(st) { return E.RULES.decksFor(st.players.length); }
+  function seenMap(st, me) {
+    const seen = {};
+    function add(c) { if (E.isJoker(c)) return; const k = c.r + c.s; seen[k] = (seen[k] || 0) + 1; }
+    me.hand.forEach(add);
+    st.melds.forEach(function (m) { m.cards.forEach(add); });
+    // cards buried in the discard pile are out of reach unless the pile has been reshuffled since
+    if (!st.reshuffles) st.discard.forEach(add); else if (st.discard.length) add(st.discard[st.discard.length - 1]);
+    // cards other players took from the pile are in their hands (everyone saw them), unless already played
+    st.players.forEach(function (p) {
+      if (p === me) return;
+      (p.took || []).forEach(function (c) {
+        const inMeld = st.melds.some(function (m) { return m.cards.some(function (x) { return x.id === c.id; }); });
+        const inPile = st.discard.some(function (x) { return x.id === c.id; });
+        if (!inMeld && !inPile) add(c);
+      });
+    });
+    return seen;
+  }
+  /* How many of this exact card could still turn up? (0 means: stop waiting for it) */
+  function unseen(ctx, r, s) { return Math.max(0, ctx.copies - (ctx.seen[r + s] || 0)); }
+  function makeCtx(st, me) { return st && me ? { copies: copiesOf(st), seen: seenMap(st, me) } : null; }
+  function outFactor(n) { return n <= 0 ? 0.05 : n === 1 ? 0.45 : n === 2 ? 0.8 : 1; }
+
   /* Rough "how close is this hand to the contract" score, used to decide what to keep or discard. */
-  function potential(hand, contract) {
+  function potential(hand, contract, ctx) {
     const bw = contract.b > 0 ? 1 : 0.3, rw = contract.r > 0 ? 1 : 0.3;
     let score = 0;
     const nats = hand.filter(function (c) { return !E.isJoker(c); });
     score += (hand.length - nats.length) * 5;
     const by = {};
     nats.forEach(function (c) { by[c.r] = (by[c.r] || 0) + 1; });
-    Object.keys(by).forEach(function (r) { const n = by[r]; score += bw * (n >= 3 ? 7 : n === 2 ? 3 : 0); });
+    Object.keys(by).forEach(function (r) {
+      const n = by[r]; let f = 1;
+      if (ctx && n < 3) { let left = 0; E.SUITS.forEach(function (su) { left += unseen(ctx, +r, su); }); f = outFactor(Math.min(2, left)); }   // a pair is worth less when the rank is nearly all gone
+      score += bw * (n >= 3 ? 7 : n === 2 ? 3 * f : 0);
+    });
     E.SUITS.forEach(function (s) {
       const have = {};
       nats.forEach(function (c) { if (c.s === s) { have[c.r] = true; if (c.r === 1) have[14] = true; } });
       let bestWin = 0;
       for (let start = 1; start <= 11; start++) {
-        let p = 0;
-        for (let k = 0; k < 4; k++) if (have[start + k]) p++;
-        bestWin = Math.max(bestWin, p === 4 ? 9 : p === 3 ? 5 : p === 2 ? 1.5 : 0);
+        let p = 0, miss = 1;
+        for (let k = 0; k < 4; k++) {
+          const rr = start + k;
+          if (have[rr]) p++;
+          else if (ctx) { const real = rr === 14 ? 1 : rr; miss = Math.min(miss, outFactor(unseen(ctx, real, s))); }   // the card I still need: is it out there?
+        }
+        bestWin = Math.max(bestWin, p === 4 ? 9 : (p === 3 ? 5 : p === 2 ? 1.5 : 0) * (p < 4 ? miss : 1));
       }
       score += rw * bestWin;
     });
@@ -1660,7 +1693,9 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
   const LEVELS = {
     easy:   { takeMin: 3,   blunder: 0.6, buyMin: 1e9, buyProb: 0, downProb: 0.5 },
     normal: { takeMin: 1,   blunder: 0.15, buyMin: 3,  buyProb: 0.35, downProb: 0.85 },
-    hard:   { keepFits: true, takeMin: 0.5, blunder: 0,   buyMin: 2,   buyProb: 0.9, downProb: 1 }
+    hard:   { keepFits: true, memory: true, feed: true, takeMin: 0.5, blunder: 0, buyMin: 2, buyProb: 0.9, downProb: 1 },
+    // expert: everything hard does, plus it plans for the cards that would let it go down, and spends its buys carefully
+    expert: { keepFits: true, memory: true, feed: true, look: true, smartBuy: true, takeMin: 0.4, blunder: 0, buyMin: 1.5, buyProb: 1, downProb: 1 }
   };
   function cfg(level) { return LEVELS[level] || LEVELS.normal; }
 
@@ -1676,9 +1711,10 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
     if (me.down) return st.melds.some(function (m) { return E.canLayoff(m, top); });
     const contract = E.RULES.contracts[(st.round || 1) - 1];
     const withTop = me.hand.concat([top]);
-    const keep = pickDiscard({ hand: withTop, down: false }, contract);
+    const ctx = cfg(level).memory ? makeCtx(st, me) : null;
+    const keep = pickDiscard({ hand: withTop, down: false }, contract, null, { ctx: ctx });
     const after = withTop.filter(function (c) { return c !== keep; });
-    return potential(after, contract) - potential(me.hand, contract) >= cfg(level).takeMin;
+    return potential(after, contract, ctx) - potential(me.hand, contract, ctx) >= cfg(level).takeMin;
   }
 
   /* After you're down: how likely is this card to be playable on a set later? */
@@ -1697,19 +1733,59 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
     return v;
   }
 
-  function pickDiscard(me, contract, melds, keepFits) {
+  /* Would handing this card to that player help them? Players who took it before want it; players who are down want cards that fit a set. */
+  function feeds(c, opp, st) {
+    if (E.isJoker(c)) return 3;
+    let v = 0;
+    if (opp.down) {
+      if (st.melds.some(function (m) { return E.canLayoff(m, c); })) v += 2;
+    } else {
+      (opp.took || []).forEach(function (t) {
+        if (E.isJoker(t)) return;
+        if (t.r === c.r) v += 1.5;                                   // another of a rank they are collecting
+        else if (t.s === c.s && Math.abs(t.r - c.r) <= 2) v += 1;   // runs next to a card they took
+      });
+    }
+    return v;
+  }
+  function nextOpp(st, me) {
+    const n = st.players.length; let i = st.players.indexOf(me);
+    if (i < 0) return null;
+    return st.players[(i + 1) % n] === me ? null : st.players[(i + 1) % n];
+  }
+
+  /* Expert only: after dropping this card, how many of the cards still out there would let me go down? */
+  function outsToGo(rest, contract, ctx) {
+    let total = 0;
+    const suits = E.SUITS;
+    for (let r = 1; r <= 13; r++) for (let k = 0; k < suits.length; k++) {
+      const n = unseen(ctx, r, suits[k]); if (!n) continue;
+      if (findDown(rest.concat([{ id: 'probe', r: r, s: suits[k] }]), contract)) total += n;
+    }
+    return total;
+  }
+
+  function pickDiscard(me, contract, melds, opts) {
+    if (opts === true || opts === false || opts == null) opts = { keepFits: !!opts };
+    const keepFits = opts.keepFits, ctx = opts.ctx || null, st = opts.st || null;
     const hand = me.hand;
     let pool = hand.filter(function (c) { return !E.isJoker(c); });
     if (!pool.length) pool = hand;
+    const opp = opts.feed && st ? nextOpp(st, me) : null;
     let best = null, bestScore = Infinity;
+    // expert lookahead only when the hand is already close to the requirement (it is the slow part)
+    const near = opts.look && ctx && !me.down && potential(hand, contract, ctx) >= 14;
     pool.forEach(function (c) {
       let score;
-      if (me.down) score = fitValue(c, melds || []) * 100 - E.cardPoints(c);
-      else {
+      if (me.down) {
+        score = fitValue(c, melds || []) * 100 - E.cardPoints(c);
+        if (opp) score += feeds(c, opp, st) * 40;                        // don't hand the next player a card they can use
+      } else {
         const rest = hand.filter(function (x) { return x !== c; });
-        score = -potential(rest, contract) * 100 - E.cardPoints(c);
-        // hard bots hold cards that other players' sets could take, to play them once they are down
-        if (keepFits) score += fitValue(c, melds || []) * 100000;
+        score = -potential(rest, contract, ctx) * 100 - E.cardPoints(c);
+        if (keepFits) score += fitValue(c, melds || []) * 100000;        // hard bots hold cards that other players' sets could take
+        if (opp) score += feeds(c, opp, st) * 60;
+        if (near) score -= outsToGo(rest, contract, ctx) * 120;            // keep the hand that has the most ways to finish
       }
       if (score < bestScore) { bestScore = score; best = c; }
     });
@@ -1739,7 +1815,8 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
       }
     }
     if (me.hand.length === 1) return { type: 'end' };
-    let d = pickDiscard(me, contract, st.melds, !!cfg(level).keepFits);
+    const cf = cfg(level);
+    let d = pickDiscard(me, contract, st.melds, { keepFits: !!cf.keepFits, ctx: cf.memory ? makeCtx(st, me) : null, st: st, feed: !!cf.feed, look: !!cf.look });
     if (Math.random() < cfg(level).blunder) {
       const pool = me.hand.filter(function (c) { return !E.isJoker(c); });
       if (pool.length) d = pool[Math.floor(Math.random() * pool.length)];
@@ -1758,11 +1835,20 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
     const c = cfg(level), me = st.players.find(function (p) { return p.id === pid; }), top = topDiscard(st);
     if (!me || !top || me.down || c.buyProb <= 0 || (E.isTopDead && E.isTopDead(st))) return false;
     const contract = E.RULES.contracts[(st.round || 1) - 1];
+    const ctx = c.memory ? makeCtx(st, me) : null;
     const withTop = me.hand.concat([top]);
-    const keep = pickDiscard({ hand: withTop, down: false }, contract);
+    const keep = pickDiscard({ hand: withTop, down: false }, contract, null, { ctx: ctx });
     const after = withTop.filter(function (x) { return x !== keep; });
-    const gain = E.isJoker(top) ? 99 : potential(after, contract) - potential(me.hand, contract);
-    return gain >= c.buyMin && Math.random() < c.buyProb;
+    // a card that lets me go down right away is always worth a buy
+    if (c.smartBuy && findDown(withTop, contract)) return true;
+    let gain = E.isJoker(top) ? 99 : potential(after, contract, ctx) - potential(me.hand, contract, ctx);
+    let need = c.buyMin;
+    if (c.smartBuy) {
+      const left = E.RULES.maxBuys - me.buys;                 // buys are limited, so spend the last ones only on the best cards
+      if (left <= 1) need += 3; else if (left === 2) need += 1;
+      // buying costs an extra card from the stock, so it is worth most when the hand is still far from done
+    }
+    return gain >= need && Math.random() < c.buyProb;
   }
 
   return { move: move, respond: respond, wantsBuy: wantsBuy, wouldTake: wouldTake, findDown: findDown, potential: potential };
@@ -1971,7 +2057,7 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
         E.cancelBuy(this.game);
         break;
       case 'level':
-        if (!isHost || ['easy', 'normal', 'hard'].indexOf(msg.level) < 0) return;
+        if (!isHost || ['easy', 'normal', 'hard', 'expert'].indexOf(msg.level) < 0) return;
         this.level = msg.level;
         break;
       case 'chat': {
@@ -2767,7 +2853,7 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
       isHost && V.players.length < E.RULES.maxPlayers ? h('button', { class: 'ghost', onclick: function () { net.send({ t: 'addBot' }); } }, '+ Add a computer player') : null,
       V.players.some(function (p) { return p.bot; }) ? h('div', { class: 'diff' },
         h('span', { class: 'muted' }, 'Computer skill: '),
-        ['easy', 'normal', 'hard'].map(function (l) {
+        ['easy', 'normal', 'hard', 'expert'].map(function (l) {
           return h('button', { class: (V.level === l ? 'orange' : 'ghost') + ' small', disabled: !isHost, onclick: function () { net.send({ t: 'level', level: l }); } }, l[0].toUpperCase() + l.slice(1));
         })) : null));
     if (isHost) {
@@ -3689,4 +3775,4 @@ button.blue{background:#2f7fd6;color:#fff;box-shadow:0 5px 0 #1c4f8c,0 7px 8px r
 </script>
 </body>
 </html>
-<!-- build 1795844348 -->
+<!-- build 1795847976 -->
